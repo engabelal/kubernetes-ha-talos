@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeinvaders
+  namespace: kubeinvaders
+  labels:
+    app: kubeinvaders
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubeinvaders
+  template:
+    metadata:
+      labels:
+        app: kubeinvaders
+    spec:
+      serviceAccountName: kubeinvaders
+      containers:
+      - name: kubeinvaders
+        image: luckysideburn/kubeinvaders:latest
+        imagePullPolicy: Always
+        env:
+        - name: TARGET_NAMESPACE
+          value: "default" # Target the default namespace for chaos
+        - name: ROUTE_HOST
+          value: "kubeinvaders.172.16.16.102.sslip.io"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubeinvaders
+  namespace: kubeinvaders
+spec:
+  selector:
+    app: kubeinvaders
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP

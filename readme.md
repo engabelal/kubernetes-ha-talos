@@ -34,8 +34,10 @@ graph LR
     %% ==========================================
     %% 3. CLUSTER & ROUTING
     %% ==========================================
-    subgraph S3 ["🦅 Talos Cluster"]
+    subgraph S3 ["🦅 Talos Cluster (Immutable OS)"]
         direction TB
+
+        note_os["<i>API-Driven & Read-Only FS</i>"]
 
         subgraph CP ["🧠 Control Plane"]
             api["☸️ API Server"]

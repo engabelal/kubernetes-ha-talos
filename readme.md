@@ -49,6 +49,7 @@ Start your journey here steps 1 through 6:
 
 | **06** | **[06-storage-longhorn/](./06-storage-longhorn/)** | **Storage:** Persistent Volumes & Longhorn UI. |
 | **07** | **[07-dashboard-headlamp/](./07-dashboard-headlamp/)** | **Dashboard:** Headlamp UI & Admin Access. |
+| **08** | **[08-gateway-envoy/](./08-gateway-envoy/)** | **Gateway API:** Modern Envoy Gateway implementation. |
 
 ---
 
@@ -83,75 +84,120 @@ kubectl get nodes -o wide
 ## 🗺️ High-Level Architecture
 
 ```mermaid
-graph TD
-    %% Users and DNS
-    user(("🌍 Internet / Users"))
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'primaryTextColor': '#0d47a1', 'primaryBorderColor': '#1976d2', 'lineColor': '#424242', 'secondaryColor': '#fff3e0', 'tertiaryColor': '#f3e5f5'}}}%%
 
-    subgraph DNS ["🌐 DNS Resolution (sslip.io)"]
-        direction LR
-        dns_legacy["*.101.sslip.io"]
-        dns_modern["*.102.sslip.io"]
+graph TB
+    %% ═══════════════════════════════════════════════════════════════════════
+    %% EXTERNAL LAYER
+    %% ═══════════════════════════════════════════════════════════════════════
+    user(("🌍 Internet<br/>Users & Clients"))
+
+    subgraph VIP_LAYER ["🔴 Virtual IP Layer"]
+        vip["<b>VIP: 172.16.16.100</b><br/>Floats to Active Leader"]
     end
 
-    %% Network Entry
-    subgraph Cluster ["🦅 Talos Kubernetes Cluster"]
+    %% ═══════════════════════════════════════════════════════════════════════
+    %% CONTROL PLANE
+    %% ═══════════════════════════════════════════════════════════════════════
+    subgraph CLUSTER ["🦅 Talos Kubernetes Cluster (v1.35 on Talos v1.9)"]
         direction TB
 
-        %% Control Plane
-        subgraph CP ["🧠 Control Plane (VIP: .100)"]
-            api["API Server"]
-            etcd[("Etcd")]
-        end
-
-        %% Layer 2 Load Balancing
-        subgraph L2 ["⚖️ Layer 2 MetalLB"]
-            direction TB
-            ip_traefik["IP: 172.16.16.101"]
-            ip_envoy["IP: 172.16.16.102"]
-        end
-
-        %% Layer 7 Routing (The Core Request)
-        subgraph L7 ["🚦 Traffic Controllers"]
+        subgraph CP ["🧠 Control Plane (Stacked Etcd)"]
             direction LR
+            cp1["<b>cp01</b><br/>172.16.16.147<br/>🟢 Leader"]
+            cp2["<b>cp02</b><br/>172.16.16.148<br/>⚪ Follower"]
+            cp3["<b>cp03</b><br/>172.16.16.149<br/>⚪ Follower"]
+        end
 
-            subgraph Path1 ["📉 Legacy Path (Ingress API)"]
-                style Path1 fill:#f5f5f5,stroke:#9e9e9e,stroke-dasharray: 5 5
-                traefik["🏁 Traefik Controller<br/>(Ingress Class: traefik)"]
+        %% ═══════════════════════════════════════════════════════════════════
+        %% SYSTEM COMPONENTS
+        %% ═══════════════════════════════════════════════════════════════════
+        subgraph SYSTEM ["⚙️ Core System Components"]
+            direction LR
+            flannel["🔗 Flannel CNI<br/>(Pod Network: 10.244.0.0/16)"]
+            metallb["⚖️ MetalLB<br/>(IPs: .101-.120)"]
+            certmgr["🔐 Cert-Manager<br/>(Self-Signed TLS)"]
+            metrics["📊 Metrics Server<br/>(kubectl top)"]
+        end
+
+        %% ═══════════════════════════════════════════════════════════════════
+        %% STORAGE
+        %% ═══════════════════════════════════════════════════════════════════
+        subgraph STORAGE ["💾 Distributed Storage"]
+            longhorn["📦 Longhorn<br/>(Replicated Block Storage)<br/>UI: longhorn.101.sslip.io"]
+        end
+
+        %% ═══════════════════════════════════════════════════════════════════
+        %% TRAFFIC CONTROLLERS
+        %% ═══════════════════════════════════════════════════════════════════
+        subgraph INGRESS ["🚦 Traffic Controllers"]
+            direction TB
+
+            subgraph INGRESS_API ["📉 Ingress API (Legacy)"]
+                traefik["🏁 <b>Traefik v3</b><br/>IP: 172.16.16.101<br/>*.101.sslip.io"]
             end
 
-            subgraph Path2 ["🚀 Modern Path (Gateway API)"]
-                style Path2 fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
-                envoy["🛡️ Envoy Gateway<br/>(Gateway Class: eg)"]
+            subgraph GATEWAY_API ["🚀 Gateway API (Modern)"]
+                envoy["🛡️ <b>Envoy Gateway v1.6</b><br/>IP: 172.16.16.102<br/>*.102.sslip.io"]
             end
         end
 
-        %% Workloads
-        subgraph Workloads ["📦 Application Workloads"]
-            app1["Old App (Ingress)"]
-            app2["New App (HTTPRoute)"]
+        %% ═══════════════════════════════════════════════════════════════════
+        %% DASHBOARDS
+        %% ═══════════════════════════════════════════════════════════════════
+        subgraph DASHBOARDS ["🖥️ Management Dashboards"]
+            headlamp["💡 Headlamp<br/>headlamp.101.sslip.io"]
+        end
+
+        %% ═══════════════════════════════════════════════════════════════════
+        %% WORKER NODES
+        %% ═══════════════════════════════════════════════════════════════════
+        subgraph WORKERS ["💪 Worker Nodes (Data Plane)"]
+            direction LR
+            wk1["<b>wk01</b><br/>172.16.16.150<br/>📦 Pods"]
+            wk2["<b>wk02</b><br/>172.16.16.151<br/>📦 Pods"]
+            wk3["<b>wk03</b><br/>172.16.16.152<br/>📦 Pods"]
         end
     end
 
-    %% Connections
-    user ==> DNS
-    dns_legacy -.-> ip_traefik
-    dns_modern == "Modern Traffic" ==> ip_envoy
+    %% ═══════════════════════════════════════════════════════════════════════
+    %% CONNECTIONS
+    %% ═══════════════════════════════════════════════════════════════════════
+    user --> VIP_LAYER
+    VIP_LAYER --> CP
 
-    ip_traefik --> traefik
-    ip_envoy ==> envoy
+    CP --> SYSTEM
+    SYSTEM --> STORAGE
+    SYSTEM --> INGRESS
 
-    traefik --> app1
-    envoy ==> app2
+    traefik --> WORKERS
+    envoy --> WORKERS
 
-    %% Styling
-    style Cluster fill:#fafafa,stroke:#333,stroke-width:2px
-    style CP fill:#e0f7fa,stroke:#006064
-    style L2 fill:#fff3e0,stroke:#e65100
-    style L7 fill:#fff,stroke:#fff
-    style traefik fill:#eee,stroke:#333
+    longhorn -.-> wk1
+    longhorn -.-> wk2
+    longhorn -.-> wk3
+
+    %% ═══════════════════════════════════════════════════════════════════════
+    %% STYLING
+    %% ═══════════════════════════════════════════════════════════════════════
+    style CLUSTER fill:#fafafa,stroke:#333,stroke-width:3px
+    style CP fill:#e0f7fa,stroke:#006064,stroke-width:2px
+    style WORKERS fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style SYSTEM fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style STORAGE fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style INGRESS fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style INGRESS_API fill:#f5f5f5,stroke:#9e9e9e,stroke-dasharray: 5 5
+    style GATEWAY_API fill:#bbdefb,stroke:#1976d2,stroke-width:2px
+    style DASHBOARDS fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style VIP_LAYER fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+
+    style cp1 fill:#c8e6c9,stroke:#2e7d32
+    style cp2 fill:#fff,stroke:#9e9e9e
+    style cp3 fill:#fff,stroke:#9e9e9e
+    style traefik fill:#eee,stroke:#424242
     style envoy fill:#2979ff,stroke:#0d47a1,color:#fff
-    style Workloads fill:#f3e5f5,stroke:#7b1fa2
 ```
+
 
 ## 🌐 Network & IP Plan
 

@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: longhorn-test-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: longhorn-test-pod
+  namespace: default
+spec:
+  containers:
+  - name: longhorn-test-container
+    image: busybox
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do date >> /mnt/data/test.txt; sleep 5; done"]
+    volumeMounts:
+    - name: longhorn-vol
+      mountPath: /mnt/data
+  volumes:
+  - name: longhorn-vol
+    persistentVolumeClaim:
+      claimName: longhorn-test-pvc

@@ -85,8 +85,12 @@ graph LR
     style lb1 fill:#fff3e0,stroke:#ff6f00
     style lb2 fill:#fff3e0,stroke:#ff6f00
 
-    style cp1 & cp2 & cp3 fill:#fff,stroke:#01579b
-    style wk1 & wk2 & wk3 fill:#fff,stroke:#7b1fa2
+    style cp1 fill:#fff,stroke:#01579b
+    style cp2 fill:#fff,stroke:#01579b
+    style cp3 fill:#fff,stroke:#01579b
+    style wk1 fill:#fff,stroke:#7b1fa2
+    style wk2 fill:#fff,stroke:#7b1fa2
+    style wk3 fill:#fff,stroke:#7b1fa2
     style envoy fill:#2979ff,stroke:#0d47a1,color:#fff
 ```
 

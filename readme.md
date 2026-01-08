@@ -35,7 +35,7 @@ graph LR
     %% ==========================================
     %% 3. TALOS CLUSTER (6 NODES)
     %% ==========================================
-    subgraph S3 ["🦅 Talos HA Cluster (Immutable OS)"]
+    subgraph S3 ["🛡️ Talos HA Cluster (Immutable OS)"]
         direction LR
 
         %% 🧠 CONTROL PLANE

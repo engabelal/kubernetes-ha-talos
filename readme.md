@@ -5,87 +5,88 @@ This project demonstrates a production-grade, fully automated Kubernetes cluster
 
 ---
 
-## 🗺️ High-Level Architecture
+## 🗺️ High-Level Architecture (Solution Architect View)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#333', 'primaryBorderColor': '#777', 'lineColor': '#444', 'secondaryColor': '#f4f4f4', 'tertiaryColor': '#fff'}}}%%
 
 graph LR
-    %% 🌐 EXTERNAL ACCESS
-    subgraph EXTERNAL ["🌐 External Access"]
-        direction TB
-        admin(("👤 <b>Admin</b><br/>(DevOps)"))
-        users(("👥 <b>Users</b><br/>(Clients)"))
+    %% 📡 EXTERNAL ACCESS
+    subgraph ACCESS ["🌍 Access Layers"]
+        admin(("👨‍💻 <b>Admin</b><br/>kubectl/talosctl"))
+        users(("🌐 <b>Users</b><br/>HTTPS Traffic"))
     end
 
-    %% 🔐 NETWORK ENTRY (The "Front Door")
-    subgraph DOOR ["🔐 Network Entry (MetalLB)"]
+    %% 🔐 NETWORK ENTRY (MetalLB & VIP)
+    subgraph NETWORK ["🔐 Network Gateways"]
         direction TB
-        vip["🔴 <b>VIP: .100</b><br/>(API Gateway)"]
-        pool["⚖️ <b>LB Pool: .101 - .120</b><br/>(App Gateway)"]
+        vip["🔴 <b>Cluster VIP: .100</b><br/>(Management Entry)"]
+        lb1["⚖️ <b>Traefik IP: .101</b><br/>(Ingress Entry)"]
+        lb2["⚖️ <b>Envoy IP: .102</b><br/>(Gateway Entry)"]
     end
 
-    %% 🦅 THE CLUSTER CORE
-    subgraph CLUSTER ["🦅 Talos HA Cluster (6 Nodes)"]
+    %% 🧠 CLUSTER TOPOLOGY
+    subgraph CLUSTER ["🦅 High-Availability Cluster (HA)"]
         direction LR
 
-        %% 🧠 CONTROL PLANE
-        subgraph CP ["🧠 Control Plane (HA)"]
+        %% CONTROL PLANE NODES
+        subgraph CONTROL_PLANE ["🧠 Control Plane (Etcd Quorum)"]
             direction TB
-            cp_nodes["3x Master Nodes<br/>(cp01, cp02, cp03)"]
+            cp1["<b>cp01</b><br/>172.16.16.147"]
+            cp2["<b>cp02</b><br/>172.16.16.148"]
+            cp3["<b>cp03</b><br/>172.16.16.149"]
+
             api["☸️ K8s API Server"]
-            etcd[("💾 Stacked Etcd<br/>(Consistency)")]
-
-            api --- etcd
-            cp_nodes --- api
+            cp1 & cp2 & cp3 --- api
         end
 
-        %% 🚦 TRAFFIC LAYER
-        subgraph ROUTING ["🚦 Traffic Controllers"]
+        %% MIDDLEWARE LAYER
+        subgraph MIDDLEWARE ["⚙️ Service Mesh & Routing"]
             direction TB
-            traefik["🏁 <b>Traefik v3</b><br/>(Ingress Path .101)"]
-            envoy["🛡️ <b>Envoy v1.6</b><br/>(Gateway Path .102)"]
+            traefik["🏁 <b>Traefik v3</b><br/>Ingress Controller"]
+            envoy["🛡️ <b>Envoy v1.6</b><br/>Gateway API"]
         end
 
-        %% 💪 DATA PLANE
-        subgraph WORKERS ["💪 Data Plane"]
+        %% WORKER NODES
+        subgraph DATA_PLANE ["💪 Data Plane (Compute Nodes)"]
             direction TB
-            wk_nodes["3x Worker Nodes<br/>(wk01, wk02, wk03)"]
-            subgraph SERVICES ["🛠️ Core Services"]
-                direction LR
-                longhorn["📦 Longhorn<br/>(Storage)"]
-                certmgr["🔐 Cert-Mgr<br/>(TLS)"]
-                flannel["🔗 Flannel<br/>(CNI)"]
+            wk1["<b>wk01</b><br/>172.16.16.150"]
+            wk2["<b>wk02</b><br/>172.16.16.151"]
+            wk3["<b>wk03</b><br/>172.16.16.152"]
+
+            subgraph SHARED ["💾 Shared Storage"]
+                longhorn["📦 Longhorn Replicated Storage"]
             end
-            wk_nodes --- SERVICES
+            wk1 & wk2 & wk3 --- SHARED
         end
     end
 
-    %% 🔗 LOGICAL FLOWS
-    admin -- "kubectl/talosctl" --> vip
-    vip ==> api
+    %% 🔗 TRAFFIC LOGIC
+    admin -- "API Management" --> vip
+    vip ==> CONTROL_PLANE
 
-    users -- "HTTPS / ARP" --> pool
-    pool -- ".101" --> traefik
-    pool -- ".102" --> envoy
+    users -- "sslip.io" --> lb1 & lb2
+    lb1 ==> traefik
+    lb2 ==> envoy
 
-    traefik ==> wk_nodes
-    envoy ==> wk_nodes
+    traefik ==> DATA_PLANE
+    envoy ==> DATA_PLANE
 
-    %% 🎨 STYLING & COLORS
-    style EXTERNAL fill:none,stroke:none
-    style DOOR fill:#fafafa,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
-    style CLUSTER fill:#ffffff,stroke:#333,stroke-width:3px
+    %% 🎨 STYLING
+    style ACCESS fill:none,stroke:none
+    style NETWORK fill:#fafafa,stroke:#333,stroke-dasharray: 5 5
+    style CLUSTER fill:#ffffff,stroke:#333,stroke-width:2px
 
-    style CP fill:#e0f7fa,stroke:#006064,stroke-width:2px
-    style ROUTING fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style WORKERS fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style CONTROL_PLANE fill:#e1f5fe,stroke:#01579b
+    style MIDDLEWARE fill:#e8f5e9,stroke:#2e7d32
+    style DATA_PLANE fill:#f3e5f5,stroke:#7b1fa2
 
-    style vip fill:#ffcdd2,stroke:#c62828,color:#b71c1c
-    style pool fill:#fff3e0,stroke:#e65100,color:#e65100
-    style api fill:#fff,stroke:#006064
-    style etcd fill:#fff,stroke:#006064
-    style traefik fill:#f5f5f5,stroke:#333
+    style vip fill:#ffcdd2,stroke:#c62828
+    style lb1 fill:#fff3e0,stroke:#ff6f00
+    style lb2 fill:#fff3e0,stroke:#ff6f00
+
+    style cp1 & cp2 & cp3 fill:#fff,stroke:#01579b
+    style wk1 & wk2 & wk3 fill:#fff,stroke:#7b1fa2
     style envoy fill:#2979ff,stroke:#0d47a1,color:#fff
 ```
 

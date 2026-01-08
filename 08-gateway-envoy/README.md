@@ -17,40 +17,43 @@ This module implements the **Kubernetes Gateway API** using **Envoy Gateway v1.6
 
 ---
 
-## 🌊 Architecture & Traffic Flow
+## 🌊 Traffic Flow Architecture
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'lineColor': '#1976d2'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'lineColor': '#1976d2', 'fontFamily': 'Inter, sans-serif'}}}%%
 
 graph LR
-    subgraph EXTERNAL ["🌍 External"]
-        user(("User"))
-        dns["demo.172.16.16.102.sslip.io"]
+    subgraph EXTERNAL ["🌐 Internet"]
+        user(("👤 User"))
+        dns["DNS: demo...sslip.io"]
     end
 
-    subgraph METALLB ["⚖️ MetalLB"]
-        lb["IP: 172.16.16.102"]
+    subgraph NETWORK ["⚖️ L2 Network"]
+        lb["<b>MetalLB Speaker</b><br/>IP: 172.16.16.102"]
     end
 
-    subgraph ENVOY ["🛡️ Envoy Gateway"]
-        gateway["Gateway<br/>(my-envoy-gateway)"]
-        route["HTTPRoute<br/>(envoy-demo-route)"]
+    subgraph ENVOY ["🛡️ Envoy Gateway (L7)"]
+        gateway["🚪 <b>Gateway</b><br/>(Listener: 80/443)"]
+        route["⚡ <b>HTTPRoute</b><br/>(Rules Engine)"]
     end
 
-    subgraph K8S ["☸️ Kubernetes"]
-        svc["Service<br/>(envoy-demo-svc)"]
-        pod1["Pod 1"]
-        pod2["Pod 2"]
+    subgraph APPS ["☸️ Data Plane"]
+        svc["🧩 <b>ClusterIP Svc</b><br/>(Backend)"]
+        pod["📦 <b>App Pods</b><br/>(podinfo)"]
     end
 
-    user --> dns --> lb --> gateway --> route --> svc
-    svc --> pod1
-    svc --> pod2
+    %% Flow
+    user -- "HTTPS" --> dns
+    dns -- "ARP/IP" --> lb
+    lb ==> gateway
+    gateway -- "Path Matching" --> route
+    route -- "LoadBalance" --> svc
+    svc --> pod
 
-    style EXTERNAL fill:#fff,stroke:#333
-    style METALLB fill:#fff3e0,stroke:#e65100
-    style ENVOY fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    style K8S fill:#f3e5f5,stroke:#7b1fa2
+    %% Styling
+    style ENVOY fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style NETWORK fill:#fff3e0,stroke:#e65100
+    style APPS fill:#f3e5f5,stroke:#7b1fa2
     style gateway fill:#bbdefb,stroke:#1565c0
     style route fill:#c8e6c9,stroke:#388e3c
 ```

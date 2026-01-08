@@ -8,70 +8,85 @@ This project demonstrates a production-grade, fully automated Kubernetes cluster
 ## 🗺️ High-Level Architecture
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'lineColor': '#424242', 'fontFamily': 'Inter, sans-serif'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#333', 'primaryBorderColor': '#777', 'lineColor': '#444', 'secondaryColor': '#f4f4f4', 'tertiaryColor': '#fff'}}}%%
 
 graph LR
-    %% 📡 External Access Points
-    subgraph Access ["🌍 Access Paths"]
-        admin(("👨‍💻 Admin<br/>(kubectl/talosctl)"))
-        users(("🌐 Users<br/>(HTTP/HTTPS)"))
+    %% 🌐 EXTERNAL ACCESS
+    subgraph EXTERNAL ["🌐 External Access"]
+        direction TB
+        admin(("👤 <b>Admin</b><br/>(DevOps)"))
+        users(("👥 <b>Users</b><br/>(Clients)"))
     end
 
-    %% 🔐 Entry Points (Network Layer)
-    subgraph Entry ["🔐 Entry Points"]
-        vip["🔴 <b>VIP: 172.16.16.100</b><br/>(API Server Access)"]
-        lb_pool["⚖️ <b>MetalLB Pool</b><br/>(Service IP Pool)"]
+    %% 🔐 NETWORK ENTRY (The "Front Door")
+    subgraph DOOR ["🔐 Network Entry (MetalLB)"]
+        direction TB
+        vip["🔴 <b>VIP: .100</b><br/>(API Gateway)"]
+        pool["⚖️ <b>LB Pool: .101 - .120</b><br/>(App Gateway)"]
     end
 
-    %% 🧠 Control Plane & Core stack
-    subgraph CLUSTER ["🦅 Talos HA Cluster"]
+    %% 🦅 THE CLUSTER CORE
+    subgraph CLUSTER ["🦅 Talos HA Cluster (6 Nodes)"]
         direction LR
 
-        subgraph CP ["🧠 Control Plane"]
+        %% 🧠 CONTROL PLANE
+        subgraph CP ["🧠 Control Plane (HA)"]
             direction TB
-            cp_nodes["3x Nodes<br/>(Active/Passive)"]
-            api["K8s API Server"]
-            etcd[("Stacked Etcd")]
+            cp_nodes["3x Master Nodes<br/>(cp01, cp02, cp03)"]
+            api["☸️ K8s API Server"]
+            etcd[("💾 Stacked Etcd<br/>(Consistency)")]
+
+            api --- etcd
+            cp_nodes --- api
         end
 
-        subgraph INGRESS ["🚦 Traffic Routing"]
+        %% 🚦 TRAFFIC LAYER
+        subgraph ROUTING ["🚦 Traffic Controllers"]
             direction TB
-            traefik["🏁 <b>Traefik v3</b><br/>(.101 - Ingress API)"]
-            envoy["🛡️ <b>Envoy v1.6</b><br/>(.102 - Gateway API)"]
+            traefik["🏁 <b>Traefik v3</b><br/>(Ingress Path .101)"]
+            envoy["🛡️ <b>Envoy v1.6</b><br/>(Gateway Path .102)"]
         end
 
-        subgraph DATA ["💪 Data Plane"]
+        %% 💪 DATA PLANE
+        subgraph WORKERS ["💪 Data Plane"]
             direction TB
-            wk_nodes["3x Worker Nodes<br/>(wk01-03)"]
-            storage["💾 Longhorn<br/>(Block Storage)"]
-            cni["🔗 Flannel CNI"]
+            wk_nodes["3x Worker Nodes<br/>(wk01, wk02, wk03)"]
+            subgraph SERVICES ["🛠️ Core Services"]
+                direction LR
+                longhorn["📦 Longhorn<br/>(Storage)"]
+                certmgr["🔐 Cert-Mgr<br/>(TLS)"]
+                flannel["🔗 Flannel<br/>(CNI)"]
+            end
+            wk_nodes --- SERVICES
         end
     end
 
-    %% 🔗 Connections (The Logic)
-    admin -- "Manage" --> vip
-    vip --> api
-    api -.-> cp_nodes
-    cp_nodes --- etcd
+    %% 🔗 LOGICAL FLOWS
+    admin -- "kubectl/talosctl" --> vip
+    vip ==> api
 
-    users -- "Apps" --> lb_pool
-    lb_pool -- ".101" --> traefik
-    lb_pool -- ".102" --> envoy
+    users -- "HTTPS / ARP" --> pool
+    pool -- ".101" --> traefik
+    pool -- ".102" --> envoy
 
     traefik ==> wk_nodes
     envoy ==> wk_nodes
-    wk_nodes --- storage
-    wk_nodes --- cni
 
-    %% 🎨 Styling
-    style Access fill:none,stroke:none
-    style Entry fill:#f5f5f5,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
-    style CLUSTER fill:#fafafa,stroke:#333,stroke-width:3px
-    style CP fill:#e0f7fa,stroke:#006064
-    style INGRESS fill:#e3f2fd,stroke:#1565c0
-    style DATA fill:#f3e5f5,stroke:#7b1fa2
-    style vip fill:#ffcdd2,stroke:#c62828
-    style lb_pool fill:#fff3e0,stroke:#e65100
+    %% 🎨 STYLING & COLORS
+    style EXTERNAL fill:none,stroke:none
+    style DOOR fill:#fafafa,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+    style CLUSTER fill:#ffffff,stroke:#333,stroke-width:3px
+
+    style CP fill:#e0f7fa,stroke:#006064,stroke-width:2px
+    style ROUTING fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style WORKERS fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+
+    style vip fill:#ffcdd2,stroke:#c62828,color:#b71c1c
+    style pool fill:#fff3e0,stroke:#e65100,color:#e65100
+    style api fill:#fff,stroke:#006064
+    style etcd fill:#fff,stroke:#006064
+    style traefik fill:#f5f5f5,stroke:#333
+    style envoy fill:#2979ff,stroke:#0d47a1,color:#fff
 ```
 
 ---

@@ -1,7 +1,95 @@
 # 🦅 Kubernetes HA on Talos Linux
 
 Welcome to the **Ultimate Kubernetes High Availability Cluster** lab!
-This project demonstrates a production-grade, fully automated Kubernetes cluster built on **Talos Linux** (IP-OS), designed for resilience, security, and modern GitOps practices.
+This project demonstrates a production-grade, fully automated Kubernetes cluster built on **Talos Linux**, designed for resilience, security, and modern GitOps practices.
+
+---
+
+## 🗺️ High-Level Architecture
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'lineColor': '#424242', 'fontFamily': 'Inter, sans-serif'}}}%%
+
+graph LR
+    %% 📡 External Access Points
+    subgraph Access ["🌍 Access Paths"]
+        admin(("👨‍💻 Admin<br/>(kubectl/talosctl)"))
+        users(("🌐 Users<br/>(HTTP/HTTPS)"))
+    end
+
+    %% 🔐 Entry Points (Network Layer)
+    subgraph Entry ["🔐 Entry Points"]
+        vip["🔴 <b>VIP: 172.16.16.100</b><br/>(API Server Access)"]
+        lb_pool["⚖️ <b>MetalLB Pool</b><br/>(Service IP Pool)"]
+    end
+
+    %% 🧠 Control Plane & Core stack
+    subgraph CLUSTER ["🦅 Talos HA Cluster"]
+        direction LR
+
+        subgraph CP ["🧠 Control Plane"]
+            direction TB
+            cp_nodes["3x Nodes<br/>(Active/Passive)"]
+            api["K8s API Server"]
+            etcd[("Stacked Etcd")]
+        end
+
+        subgraph INGRESS ["🚦 Traffic Routing"]
+            direction TB
+            traefik["🏁 <b>Traefik v3</b><br/>(.101 - Ingress API)"]
+            envoy["🛡️ <b>Envoy v1.6</b><br/>(.102 - Gateway API)"]
+        end
+
+        subgraph DATA ["💪 Data Plane"]
+            direction TB
+            wk_nodes["3x Worker Nodes<br/>(wk01-03)"]
+            storage["💾 Longhorn<br/>(Block Storage)"]
+            cni["🔗 Flannel CNI"]
+        end
+    end
+
+    %% 🔗 Connections (The Logic)
+    admin -- "Manage" --> vip
+    vip --> api
+    api -.-> cp_nodes
+    cp_nodes --- etcd
+
+    users -- "Apps" --> lb_pool
+    lb_pool -- ".101" --> traefik
+    lb_pool -- ".102" --> envoy
+
+    traefik ==> wk_nodes
+    envoy ==> wk_nodes
+    wk_nodes --- storage
+    wk_nodes --- cni
+
+    %% 🎨 Styling
+    style Access fill:none,stroke:none
+    style Entry fill:#f5f5f5,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+    style CLUSTER fill:#fafafa,stroke:#333,stroke-width:3px
+    style CP fill:#e0f7fa,stroke:#006064
+    style INGRESS fill:#e3f2fd,stroke:#1565c0
+    style DATA fill:#f3e5f5,stroke:#7b1fa2
+    style vip fill:#ffcdd2,stroke:#c62828
+    style lb_pool fill:#fff3e0,stroke:#e65100
+```
+
+---
+
+## 🌐 Network & IP Plan
+
+| IP Address | Hostname | Role |
+| :--- | :--- | :--- |
+| `172.16.16.147` | `cp01` | Control Plane 01 (Leader) |
+| `172.16.16.148` | `cp02` | Control Plane 02 |
+| `172.16.16.149` | `cp03` | Control Plane 03 |
+| `172.16.16.150` | `wk01` | Worker Node 01 |
+| `172.16.16.151` | `wk02` | Worker Node 02 |
+| `172.16.16.152` | `wk03` | Worker Node 03 |
+| **`172.16.16.100`** | **VIP** | **Control Plane VIP** |
+| **`172.16.16.101`** | **Traefik** | **Ingress (Legacy)** |
+| **`172.16.16.102`** | **Envoy** | **Gateway API (Modern)** |
+| `172.16.16.101-120` | MetalLB | Service IP Pool |
 
 ---
 
@@ -9,14 +97,14 @@ This project demonstrates a production-grade, fully automated Kubernetes cluster
 
 | Feature | Description | Status |
 | :--- | :--- | :--- |
-| **👑 HA Control Plane** | 3 Nodes with a Floating VIP (`100`) for zero-downtime API access. | ✅ Active |
-| **🔒 Immutable OS** | **Talos Linux**: Read-only file system, API-driven, and highly secure. | ✅ Active |
-| **⚖️ Load Balancing** | **MetalLB** provides physical IPs (Layer 2) to Services. | ✅ Active |
-| **🚦 Ingress Controller** | **Traefik** routing HTTP/HTTPS traffic with automatic IP assignment. | ✅ Active |
-| **🪄 Magic DNS** | **sslip.io** mapping (`*.101.sslip.io`) for instant domain resolution. | ✅ Active |
-| **🔐 TLS/SSL** | **Cert-Manager** issuing Self-Signed certificates for secure HTTPS. | ✅ Active |
-| **📦 Distributed Storage**| **Longhorn** providing replicated persistent volumes (Block Storage). | ✅ Active |
-| **📊 Observability** | **Metrics Server** for real-time resource tracking and autoscaling. | ✅ Active |
+| **👑 HA Control Plane** | 3-node stacked etcd with floating VIP (`.100`) | 🟢 **Ready** |
+| **🔒 Immutable OS** | Talos Linux: API-Only, No SSH, Read-Only FS | 🛡️ **Hardened** |
+| **⚖️ L2 Load Balancer** | MetalLB providing physical IP assignment to LB types | ⚡ **Active** |
+| **🚦 Traffic Switching** | Traefik (Legacy) & Envoy (Modern) co-existence | 🛤️ **Configured** |
+| **🪄 Magic DNS** | Full `sslip.io` integration for automated subdomains | 🌐 **Enabled** |
+| **🔐 SSL/TLS Automation**| Cert-Manager issuing per-service certificates | 🛡️ **Verified** |
+| **📦 Distributed Storage**| Longhorn replicated PVs across all worker nodes | 💿 **Storage OK** |
+| **📊 Dashboarding** | Headlamp & Longhorn UI for management | 🖥️ **Live** |
 
 ---
 
@@ -24,192 +112,55 @@ This project demonstrates a production-grade, fully automated Kubernetes cluster
 
 | Component | Software | Version | Purpose |
 | :--- | :--- | :--- | :--- |
-| **OS** | [Talos Linux](https://www.talos.dev/) | `v1.9.1` | The foundation. Secure, minimal K8s OS. |
-| **Kernel** | Linux | `6.x` | Optimized for container workloads. |
-| **Container Runtime** | Containerd | `Latest` | Industry standard runtime. |
-| **CNI** | Flannel | `Latest` | Simple, robust overlay networking. |
-| **Load Balancer** | MetalLB | `v0.15.3` | Bare-metal LoadBalancer implementation. |
-| **Ingress** | Traefik | `v3.x` | Edge router & service proxy. |
-| **Storage** | Longhorn | `Latest` | Cloud-native distributed block storage. |
-| **Cert-Manager** | Cert-Manager | `v1.16.x` | X.509 certificate management. |
+| **OS** | [Talos Linux](https://www.talos.dev/) | `v1.9.1` | Security-first, API-managed OS |
+| **Orchestrator** | Kubernetes | `v1.35.0` | Container orchestration engine |
+| **CNI** | Flannel | `v0.26.x` | Pod networking & VXLAN overlay |
+| **Load Balancer** | MetalLB | `v0.15.3` | Layer 2 bare-metal LoadBalancer |
+| **Ingress** | Traefik | `v3.3.x` | Standard Ingress routing (`.101`) |
+| **Gateway API** | Envoy Gateway | `v1.6.1` | Modern Gateway API routing (`.102`) |
+| **Storage** | Longhorn | `v1.7.x` | Distributed block storage for PVs |
+| **Cert-Manager** | Cert-Manager | `v1.16.x` | Certificate lifecycle management |
+| **Metrics** | Metrics Server | `v0.7.x` | Resource tracking (CPU/RAM) |
 
 ---
 
-## 📂 Project Structure & Guides
+## 📂 Project Structure
 
-Start your journey here steps 1 through 6:
-
-| # | Directory | Module Description |
+| # | Directory | Description |
 | :--- | :--- | :--- |
-| **01** | **[01-talos-bootstrap/](./01-talos-bootstrap/)** | **Bootstrap:** OS Install, Network Config, & Etcd Cluster Init. |
-| **02** | **[02-metallb/](./02-metallb/)** | **Networking:** MetalLB setup for Service IP pools. |
-| **03** | **[03-metrics-server/](./03-metrics-server/)** | **Monitoring:** Enable `kubectl top` and HPA. |
-| **04** | **[04-traefik-ingress/](./04-traefik-ingress/)** | **Ingress:** Traefik Controller & Magic DNS. |
-| **05** | **[05-cert-manager/](./05-cert-manager/)** | **Security:** HTTPS & Self-Signed Certificates. |
-
-| **06** | **[06-storage-longhorn/](./06-storage-longhorn/)** | **Storage:** Persistent Volumes & Longhorn UI. |
-| **07** | **[07-dashboard-headlamp/](./07-dashboard-headlamp/)** | **Dashboard:** Headlamp UI & Admin Access. |
-| **08** | **[08-gateway-envoy/](./08-gateway-envoy/)** | **Gateway API:** Modern Envoy Gateway implementation. |
-
----
-
-## 🔧 High Availability
-| Doc | Description |
-| :--- | :--- |
-| **[HA-VERIFICATION.md](./HA-VERIFICATION.md)** | Guide for verifying cluster health during node failures. |
+| **01** | [01-talos-bootstrap/](./01-talos-bootstrap/) | OS Install & Etcd Init |
+| **02** | [02-metallb/](./02-metallb/) | MetalLB IP Pool |
+| **03** | [03-metrics-server/](./03-metrics-server/) | Metrics Server |
+| **04** | [04-traefik-ingress/](./04-traefik-ingress/) | Traefik Ingress |
+| **05** | [05-cert-manager/](./05-cert-manager/) | TLS Certificates |
+| **06** | [06-storage-longhorn/](./06-storage-longhorn/) | Longhorn Storage |
+| **07** | [07-dashboard-headlamp/](./07-dashboard-headlamp/) | Headlamp UI |
+| **08** | [08-gateway-envoy/](./08-gateway-envoy/) | Envoy Gateway API |
 
 ---
 
-## 🚀 Access & Usage
+## 🚀 Quick Access
 
 ### 🔑 Cluster Access
 ```bash
-# Point kubectl to the local config
 export KUBECONFIG=$(pwd)/kubeconfig
-
-# Check Nodes
 kubectl get nodes -o wide
 ```
 
-### 🖥️ Dashboards & endpoints
-| Service | URL | Protocol |
+### 🖥️ Dashboards & Endpoints
+
+| Service | URL | Access Protocol |
 | :--- | :--- | :--- |
-| **Whoami App** | `http://whoami.172.16.16.101.sslip.io` | HTTP |
-| **Whoami (Secure)**| `https://whoami.172.16.16.101.sslip.io` | HTTPS 🔒 |
-| **Longhorn UI** | `http://longhorn.172.16.16.101.sslip.io` | HTTP |
-| **Headlamp Dashboard** | `https://headlamp.172.16.16.101.sslip.io` | HTTPS 🔒 |
+| **🚀 Envoy Demo** | `http://demo.172.16.16.102.sslip.io` | **Modern Path (.102)** |
+| **🚦 Whoami App** | `https://whoami.172.16.16.101.sslip.io` | **Legacy Path (.101)** |
+| **🖥️ Headlamp Dashboard**| `https://headlamp.172.16.16.101.sslip.io` | Web UI |
+| **💿 Longhorn UI** | `http://longhorn.172.16.16.101.sslip.io` | Web UI |
+| **🔧 Metrics Server** | `kubectl top nodes` | CLI Only |
 
 ---
 
-## 🗺️ High-Level Architecture
+## 🔧 HA Verification
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'primaryTextColor': '#0d47a1', 'primaryBorderColor': '#1976d2', 'lineColor': '#424242', 'secondaryColor': '#fff3e0', 'tertiaryColor': '#f3e5f5'}}}%%
-
-graph TB
-    %% ═══════════════════════════════════════════════════════════════════════
-    %% EXTERNAL LAYER
-    %% ═══════════════════════════════════════════════════════════════════════
-    user(("🌍 Internet<br/>Users & Clients"))
-
-    subgraph VIP_LAYER ["🔴 Virtual IP Layer"]
-        vip["<b>VIP: 172.16.16.100</b><br/>Floats to Active Leader"]
-    end
-
-    %% ═══════════════════════════════════════════════════════════════════════
-    %% CONTROL PLANE
-    %% ═══════════════════════════════════════════════════════════════════════
-    subgraph CLUSTER ["🦅 Talos Kubernetes Cluster (v1.35 on Talos v1.9)"]
-        direction TB
-
-        subgraph CP ["🧠 Control Plane (Stacked Etcd)"]
-            direction LR
-            cp1["<b>cp01</b><br/>172.16.16.147<br/>🟢 Leader"]
-            cp2["<b>cp02</b><br/>172.16.16.148<br/>⚪ Follower"]
-            cp3["<b>cp03</b><br/>172.16.16.149<br/>⚪ Follower"]
-        end
-
-        %% ═══════════════════════════════════════════════════════════════════
-        %% SYSTEM COMPONENTS
-        %% ═══════════════════════════════════════════════════════════════════
-        subgraph SYSTEM ["⚙️ Core System Components"]
-            direction LR
-            flannel["🔗 Flannel CNI<br/>(Pod Network: 10.244.0.0/16)"]
-            metallb["⚖️ MetalLB<br/>(IPs: .101-.120)"]
-            certmgr["🔐 Cert-Manager<br/>(Self-Signed TLS)"]
-            metrics["📊 Metrics Server<br/>(kubectl top)"]
-        end
-
-        %% ═══════════════════════════════════════════════════════════════════
-        %% STORAGE
-        %% ═══════════════════════════════════════════════════════════════════
-        subgraph STORAGE ["💾 Distributed Storage"]
-            longhorn["📦 Longhorn<br/>(Replicated Block Storage)<br/>UI: longhorn.101.sslip.io"]
-        end
-
-        %% ═══════════════════════════════════════════════════════════════════
-        %% TRAFFIC CONTROLLERS
-        %% ═══════════════════════════════════════════════════════════════════
-        subgraph INGRESS ["🚦 Traffic Controllers"]
-            direction TB
-
-            subgraph INGRESS_API ["📉 Ingress API (Legacy)"]
-                traefik["🏁 <b>Traefik v3</b><br/>IP: 172.16.16.101<br/>*.101.sslip.io"]
-            end
-
-            subgraph GATEWAY_API ["🚀 Gateway API (Modern)"]
-                envoy["🛡️ <b>Envoy Gateway v1.6</b><br/>IP: 172.16.16.102<br/>*.102.sslip.io"]
-            end
-        end
-
-        %% ═══════════════════════════════════════════════════════════════════
-        %% DASHBOARDS
-        %% ═══════════════════════════════════════════════════════════════════
-        subgraph DASHBOARDS ["🖥️ Management Dashboards"]
-            headlamp["💡 Headlamp<br/>headlamp.101.sslip.io"]
-        end
-
-        %% ═══════════════════════════════════════════════════════════════════
-        %% WORKER NODES
-        %% ═══════════════════════════════════════════════════════════════════
-        subgraph WORKERS ["💪 Worker Nodes (Data Plane)"]
-            direction LR
-            wk1["<b>wk01</b><br/>172.16.16.150<br/>📦 Pods"]
-            wk2["<b>wk02</b><br/>172.16.16.151<br/>📦 Pods"]
-            wk3["<b>wk03</b><br/>172.16.16.152<br/>📦 Pods"]
-        end
-    end
-
-    %% ═══════════════════════════════════════════════════════════════════════
-    %% CONNECTIONS
-    %% ═══════════════════════════════════════════════════════════════════════
-    user --> VIP_LAYER
-    VIP_LAYER --> CP
-
-    CP --> SYSTEM
-    SYSTEM --> STORAGE
-    SYSTEM --> INGRESS
-
-    traefik --> WORKERS
-    envoy --> WORKERS
-
-    longhorn -.-> wk1
-    longhorn -.-> wk2
-    longhorn -.-> wk3
-
-    %% ═══════════════════════════════════════════════════════════════════════
-    %% STYLING
-    %% ═══════════════════════════════════════════════════════════════════════
-    style CLUSTER fill:#fafafa,stroke:#333,stroke-width:3px
-    style CP fill:#e0f7fa,stroke:#006064,stroke-width:2px
-    style WORKERS fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style SYSTEM fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style STORAGE fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    style INGRESS fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style INGRESS_API fill:#f5f5f5,stroke:#9e9e9e,stroke-dasharray: 5 5
-    style GATEWAY_API fill:#bbdefb,stroke:#1976d2,stroke-width:2px
-    style DASHBOARDS fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    style VIP_LAYER fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-
-    style cp1 fill:#c8e6c9,stroke:#2e7d32
-    style cp2 fill:#fff,stroke:#9e9e9e
-    style cp3 fill:#fff,stroke:#9e9e9e
-    style traefik fill:#eee,stroke:#424242
-    style envoy fill:#2979ff,stroke:#0d47a1,color:#fff
-```
-
-
-## 🌐 Network & IP Plan
-
-| IP Address | Hostname | Role |
-| :--- | :--- | :--- |
-| `172.16.16.147` | `cp01` | Control Plane 01 |
-| `172.16.16.148` | `cp02` | Control Plane 02 |
-| `172.16.16.149` | `cp03` | Control Plane 03 |
-| `172.16.16.150` | `wk01` | Worker Node 01 |
-| `172.16.16.151` | `wk02` | Worker Node 02 |
-| `172.16.16.152` | `wk03` | Worker Node 03 |
-| **`172.16.16.100`** | **VIP** | **Control Plane VIP** |
-| **`172.16.16.101`** | **Traefik** | **Standard Ingress** |
-| **`172.16.16.102`** | **Envoy** | **Gateway API** |
-| `172.16.16.101-120` | MetalLB | Service IP Pool |
+| Doc | Description |
+| :--- | :--- |
+| [HA-VERIFICATION.md](./HA-VERIFICATION.md) | Guide for verifying cluster health during node failures. |

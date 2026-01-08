@@ -1,9 +1,20 @@
 # ⚖️ MetalLB LoadBalancer (Networking)
 
-In a typical Cloud environment (AWS, Google Cloud), when you request a `LoadBalancer`, the cloud provider gives you a public IP automatically.
-**In a Private Lab (Bare Metal/VMs), that magic doesn't exist.** 🤔
+This module implements **MetalLB**, bringing "Cloud-style" LoadBalancer functionality to our bare-metal Talos cluster.
 
-**MetalLB** brings that magic to our lab! It acts as a standard network router implementation for Kubernetes.
+> [!NOTE]
+> In a typical Cloud environment (AWS/GCP), `type: LoadBalancer` is handled by the provider. In our private lab, MetalLB handles this by announcing IPs via ARP.
+
+---
+
+## 📋 Service IP Allocation
+
+| Type | IP Range / Address | Purpose |
+| :--- | :--- | :--- |
+| **API VIP** | `172.16.16.100` | Fixed IP for `kubectl` & `talosctl` |
+| **MetalLB Pool** | `172.16.16.101 - .120` | Dynamic IPs for Services |
+| **Reserved .101** | `172.16.16.101` | Dedicated to **Traefik Ingress** |
+| **Reserved .102** | `172.16.16.102` | Dedicated to **Envoy Gateway** |
 
 ---
 

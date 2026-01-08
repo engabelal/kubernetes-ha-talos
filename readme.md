@@ -5,93 +5,122 @@ This project demonstrates a production-grade, fully automated Kubernetes cluster
 
 ---
 
-## 🗺️ High-Level Architecture (Solution Architect View)
+## 🗺️ High-Level Architecture
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#333', 'primaryBorderColor': '#777', 'lineColor': '#444', 'secondaryColor': '#f4f4f4', 'tertiaryColor': '#fff'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#212121', 'lineColor': '#424242', 'fontFamily': 'arial'}}}%%
 
 graph LR
-    %% 📡 EXTERNAL ACCESS
-    subgraph ACCESS ["🌍 Access Layers"]
-        admin(("👨‍💻 <b>Admin</b><br/>kubectl/talosctl"))
-        users(("🌐 <b>Users</b><br/>HTTPS Traffic"))
-    end
-
-    %% 🔐 NETWORK ENTRY (MetalLB & VIP)
-    subgraph NETWORK ["🔐 Network Gateways"]
+    %% ==========================================
+    %% 1. EXTERNAL ACTORS
+    %% ==========================================
+    subgraph S1 ["🌍  External Access"]
         direction TB
-        vip["🔴 <b>Cluster VIP: .100</b><br/>(Management Entry)"]
-        lb1["⚖️ <b>Traefik IP: .101</b><br/>(Ingress Entry)"]
-        lb2["⚖️ <b>Envoy IP: .102</b><br/>(Gateway Entry)"]
+        admin(("👨‍💻 Admin<br/>(DevOps)"))
+        user(("🌐 User<br/>(Internet)"))
     end
 
-    %% 🧠 CLUSTER TOPOLOGY
-    subgraph CLUSTER ["🦅 High-Availability Cluster (HA)"]
+    %% ==========================================
+    %% 2. NETWORK ENTRANCE (LAYER 2)
+    %% ==========================================
+    subgraph S2 ["🔌 Network Entry (MetalLB & VIP)"]
+        direction TB
+        vip_ep["🔴 <b>Control Plane VIP</b><br/>172.16.16.100"]
+        lb_traefik["🏁 <b>Traefik IP</b><br/>172.16.16.101"]
+        lb_envoy["🛡️ <b>Envoy IP</b><br/>172.16.16.102"]
+    end
+
+    %% ==========================================
+    %% 3. INFRASTRUCTURE (THE CLUSTER)
+    %% ==========================================
+    subgraph S3 ["🦅 Talos Kubernetes Cluster"]
         direction LR
 
-        %% CONTROL PLANE NODES
-        subgraph CONTROL_PLANE ["🧠 Control Plane (Etcd Quorum)"]
+        %% CONTROL PLANE
+        subgraph CP ["🧠 Control Plane (Masters)"]
             direction TB
-            cp1["<b>cp01</b><br/>172.16.16.147"]
-            cp2["<b>cp02</b><br/>172.16.16.148"]
-            cp3["<b>cp03</b><br/>172.16.16.149"]
-
-            api["☸️ K8s API Server"]
-            cp1 & cp2 & cp3 --- api
+            cp01["<b>cp01</b> .147"]
+            cp02["<b>cp02</b> .148"]
+            cp03["<b>cp03</b> .149"]
         end
 
-        %% MIDDLEWARE LAYER
-        subgraph MIDDLEWARE ["⚙️ Service Mesh & Routing"]
+        %% DATA PLANE
+        subgraph WORKERS ["💪 Data Plane (Workers)"]
             direction TB
-            traefik["🏁 <b>Traefik v3</b><br/>Ingress Controller"]
-            envoy["🛡️ <b>Envoy v1.6</b><br/>Gateway API"]
-        end
+            wk01["<b>wk01</b> .150"]
+            wk02["<b>wk02</b> .151"]
+            wk03["<b>wk03</b> .152"]
 
-        %% WORKER NODES
-        subgraph DATA_PLANE ["💪 Data Plane (Compute Nodes)"]
-            direction TB
-            wk1["<b>wk01</b><br/>172.16.16.150"]
-            wk2["<b>wk02</b><br/>172.16.16.151"]
-            wk3["<b>wk03</b><br/>172.16.16.152"]
-
-            subgraph SHARED ["💾 Shared Storage"]
-                longhorn["📦 Longhorn Replicated Storage"]
-            end
-            wk1 & wk2 & wk3 --- SHARED
+            %% RUNNING COMPONENTS
+            traefik_pod("🏁 Traefik Controller")
+            envoy_pod("🛡️ Envoy Gateway")
+            apps("📦 User Apps")
         end
     end
 
-    %% 🔗 TRAFFIC LOGIC
-    admin -- "API Management" --> vip
-    vip ==> CONTROL_PLANE
+    %% ==========================================
+    %% 4. STORAGE
+    %% ==========================================
+    subgraph S4 ["💾 Persistence Layer"]
+        longhorn[("📦 Longhorn Storage<br/>(Distributed Block)")]
+    end
 
-    users -- "sslip.io" --> lb1 & lb2
-    lb1 ==> traefik
-    lb2 ==> envoy
+    %% ==========================================
+    %% CONNECTIONS (WHO TALKS TO WHOM)
+    %% ==========================================
 
-    traefik ==> DATA_PLANE
-    envoy ==> DATA_PLANE
+    %% Admin Flow (Management)
+    admin == "kubectl / API" ==> vip_ep
+    vip_ep -- "Load Balances" --> cp01
+    vip_ep -- "Load Balances" --> cp02
+    vip_ep -- "Load Balances" --> cp03
 
-    %% 🎨 STYLING
-    style ACCESS fill:none,stroke:none
-    style NETWORK fill:#fafafa,stroke:#333,stroke-dasharray: 5 5
-    style CLUSTER fill:#ffffff,stroke:#333,stroke-width:2px
+    %% User Flow (Traffic)
+    user -- "Legacy Ingress" --> lb_traefik
+    user -- "Gateway API" --> lb_envoy
 
-    style CONTROL_PLANE fill:#e1f5fe,stroke:#01579b
-    style MIDDLEWARE fill:#e8f5e9,stroke:#2e7d32
-    style DATA_PLANE fill:#f3e5f5,stroke:#7b1fa2
+    lb_traefik == "Routes to" ==> traefik_pod
+    lb_envoy == "Routes to" ==> envoy_pod
 
-    style vip fill:#ffcdd2,stroke:#c62828
-    style lb1 fill:#fff3e0,stroke:#ff6f00
-    style lb2 fill:#fff3e0,stroke:#ff6f00
+    %% Ingress to Apps
+    traefik_pod -.-> apps
+    envoy_pod -.-> apps
 
-    style cp1 fill:#fff,stroke:#01579b
-    style cp2 fill:#fff,stroke:#01579b
-    style cp3 fill:#fff,stroke:#01579b
-    style wk1 fill:#fff,stroke:#7b1fa2
-    style wk2 fill:#fff,stroke:#7b1fa2
-    style wk3 fill:#fff,stroke:#7b1fa2
-    style envoy fill:#2979ff,stroke:#0d47a1,color:#fff
+    %% Nodes hosting Pods (Implicit conceptual link)
+    wk01 --- traefik_pod
+    wk02 --- envoy_pod
+    wk03 --- apps
+
+    %% Storage Attachment
+    apps == "Mounts PVC" ==> longhorn
+    wk01 --- longhorn
+    wk02 --- longhorn
+    wk03 --- longhorn
+
+    %% ==========================================
+    %% STYLING
+    %% ==========================================
+    style S1 fill:none,stroke:none
+    style S2 fill:#fcfcfc,stroke:#9e9e9e,stroke-dasharray: 5 5
+    style S3 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style CP fill:#e1f5fe,stroke:#0277bd
+    style WORKERS fill:#f3e5f5,stroke:#7b1fa2
+    style S4 fill:#fff3e0,stroke:#e65100
+
+    style vip_ep fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    style lb_traefik fill:#fff9c4,stroke:#fbc02d
+    style lb_envoy fill:#bbdefb,stroke:#1976d2
+
+    style cp01 fill:#fff,stroke:#0277bd
+    style cp02 fill:#fff,stroke:#0277bd
+    style cp03 fill:#fff,stroke:#0277bd
+
+    style wk01 fill:#fff,stroke:#7b1fa2
+    style wk02 fill:#fff,stroke:#7b1fa2
+    style wk03 fill:#fff,stroke:#7b1fa2
+
+    style traefik_pod fill:#fff9c4,stroke:#fbc02d
+    style envoy_pod fill:#bbdefb,stroke:#1976d2
 ```
 
 ---

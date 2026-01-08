@@ -1,4 +1,4 @@
-# 🦅 Kubernetes HA on Talos Linux
+# ☸️ Kubernetes HA on Talos Linux
 
 Welcome to the **Ultimate Kubernetes High Availability Cluster** lab!
 This project demonstrates a production-grade, fully automated Kubernetes cluster built on **Talos Linux**, designed for resilience, security, and modern GitOps practices.
@@ -153,7 +153,7 @@ graph LR
         lb["🏁 <b>MetalLB IP</b><br/>172.16.16.101"]
     end
 
-    subgraph K8S ["🦅 Kubernetes"]
+    subgraph K8S ["☸️ Kubernetes"]
         ing_con["🏁 <b>Traefik Controller</b><br/>(Listener)"]
         ing_res["📄 <b>Ingress</b><br/>(Rules)"]
         svc["🧩 <b>Service</b>"]
@@ -182,7 +182,7 @@ graph LR
         lb["🛡️ <b>MetalLB IP</b><br/>172.16.16.102"]
     end
 
-    subgraph K8S ["🦅 Kubernetes"]
+    subgraph K8S ["☸️ Kubernetes"]
         gw_con["🛡️ <b>Envoy Gateway</b><br/>(Listener)"]
         route["⚡ <b>HTTPRoute</b><br/>(Advanced Rules)"]
         svc["🧩 <b>Service</b>"]

@@ -85,8 +85,8 @@ graph LR
     envoy --> my_app
 
     %% Internal Wiring
-    certmgr -.- "Injects Secrets" -.- traefik
-    certmgr -.- "Injects Secrets" -.- envoy
+    certmgr -. "Injects Secrets" .- traefik
+    certmgr -. "Injects Secrets" .- envoy
 
     my_app == "PVC Mount" ==> longhorn
 

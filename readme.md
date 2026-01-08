@@ -139,6 +139,68 @@ graph LR
 
 ---
 
+### 🚦 Detailed Traffic Paths
+
+#### 1. Legacy Ingress Flow (Traefik)
+*Standard Kubernetes Ingress for existing workloads.*
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fff9c4', 'lineColor': '#fbc02d', 'fontFamily': 'arial'}}}%%
+graph LR
+    user(("👤 <b>User</b>"))
+
+    subgraph L2 ["🔌 Layer 2"]
+        lb["🏁 <b>MetalLB IP</b><br/>172.16.16.101"]
+    end
+
+    subgraph K8S ["🦅 Kubernetes"]
+        ing_con["🏁 <b>Traefik Controller</b><br/>(Listener)"]
+        ing_res["📄 <b>Ingress</b><br/>(Rules)"]
+        svc["🧩 <b>Service</b>"]
+        pod["📦 <b>Pod</b>"]
+    end
+
+    user -- "HTTPS" --> lb
+    lb -- "ARP -> Pod IP" --> ing_con
+    ing_con -- "Match Host" --> ing_res
+    ing_res -- "Route" --> svc
+    svc --> pod
+
+    style L2 fill:#fffde7,stroke:#fbc02d
+    style K8S fill:#fafafa,stroke:#ccc
+```
+
+#### 2. Modern Gateway Flow (Envoy)
+*Next-Gen Gateway API for advanced routing.*
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#bbdefb', 'lineColor': '#1976d2', 'fontFamily': 'arial'}}}%%
+graph LR
+    user(("👤 <b>User</b>"))
+
+    subgraph L2 ["🔌 Layer 2"]
+        lb["🛡️ <b>MetalLB IP</b><br/>172.16.16.102"]
+    end
+
+    subgraph K8S ["🦅 Kubernetes"]
+        gw_con["🛡️ <b>Envoy Gateway</b><br/>(Listener)"]
+        route["⚡ <b>HTTPRoute</b><br/>(Advanced Rules)"]
+        svc["🧩 <b>Service</b>"]
+        pod["📦 <b>Pod</b>"]
+    end
+
+    user -- "HTTPS" --> lb
+    lb -- "ARP -> Pod IP" --> gw_con
+    gw_con -- "Match Header/Path" --> route
+    route -- "Split/Filter" --> svc
+    svc --> pod
+
+    style L2 fill:#e3f2fd,stroke:#1976d2
+    style K8S fill:#fafafa,stroke:#ccc
+```
+
+---
+
 ## 🌐 Network & IP Plan
 
 | IP Address | Hostname | Role |

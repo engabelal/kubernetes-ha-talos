@@ -5,67 +5,79 @@ This project demonstrates a production-grade, fully automated Kubernetes cluster
 
 ---
 
-## 🗺️ High-Level Architecture (Logical Traffic Flow)
+## 🗺️ High-Level Architecture (Master View)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#212121', 'lineColor': '#424242', 'fontFamily': 'arial'}}}%%
 
 graph LR
     %% ==========================================
-    %% 1. EXTERNAL
+    %% 1. EXTERNAL WORLD
     %% ==========================================
-    subgraph S1 ["🌍 External Source"]
+    subgraph S1 ["🌍 Sources"]
         direction TB
-        admin(("👨‍💻 <b>Admin</b><br/>(kubectl)"))
-        user(("👤 <b>User</b><br/>(HTTPS)"))
+        admin(("👨‍💻 <b>Admin</b><br/>(DevOps)"))
+        user(("👥 <b>User</b><br/>(HTTPS)"))
     end
 
     %% ==========================================
-    %% 2. NETWORK ENTRANCE (METALLB)
+    %% 2. NETWORK GATEWAY (MetalLB)
     %% ==========================================
     subgraph S2 ["🔌 Network Entry (MetalLB L2)"]
         direction TB
-        note_lb["<i>Announces IPs via ARP</i>"]
-        vip["🔴 <b>VIP .100</b><br/>(Cluster API)"]
-        lb_legacy["🏁 <b>IP .101</b><br/>(Legacy Pool)"]
-        lb_modern["🛡️ <b>IP .102</b><br/>(Gateway Pool)"]
+        note_arp["<i>📢 Announces IPs via ARP</i>"]
+
+        vip["🔴 <b>VIP: .100</b><br/>(API Gateway)"]
+        legacy_ip["🏁 <b>IP: .101</b><br/>(Traefik Pool)"]
+        modern_ip["🛡️ <b>IP: .102</b><br/>(Envoy Pool)"]
     end
 
     %% ==========================================
-    %% 3. CLUSTER & ROUTING
+    %% 3. TALOS CLUSTER (6 NODES)
     %% ==========================================
-    subgraph S3 ["🦅 Talos Cluster (Immutable OS)"]
-        direction TB
+    subgraph S3 ["🦅 Talos HA Cluster (Immutable OS)"]
+        direction LR
 
-        note_os["<i>API-Driven & Read-Only FS</i>"]
-
-        subgraph CP ["🧠 Control Plane"]
-            api["☸️ API Server"]
-        end
-
-        subgraph ROUTING ["🚦 Ingress & Gateway Layer"]
+        %% 🧠 CONTROL PLANE
+        subgraph CP ["🧠 Control Plane (Masters)"]
             direction TB
-            certmgr("🔐 <b>Cert-Manager</b><br/>(Auto TLS Issuance)")
+            api["☸️ <b>K8s API</b>"]
 
-            subgraph R_LEGACY ["Standard Ingress"]
-                traefik("🏁 <b>Traefik v3</b><br/>(Controller)")
-            end
-
-            subgraph R_MODERN ["Gateway API"]
-                envoy("🛡️ <b>Envoy v1.6</b><br/>(Gateway)")
+            subgraph CP_NODES ["Hardware"]
+                cp1["<b>cp01</b><br/>.147"]
+                cp2["<b>cp02</b><br/>.148"]
+                cp3["<b>cp03</b><br/>.149"]
             end
         end
 
-        subgraph APPS ["📦 Application Layer"]
-            my_app("📱 User Applications<br/>(Podinfo / Websites)")
+        %% 💪 DATA PLANE
+        subgraph WORKERS ["💪 Data Plane (Workers)"]
+            direction TB
+
+            subgraph WK_NODES ["Hardware"]
+                wk1["<b>wk01</b><br/>.150"]
+                wk2["<b>wk02</b><br/>.151"]
+                wk3["<b>wk03</b><br/>.152"]
+            end
+
+            %% WORKLOADS RUNNING ON WORKERS
+            subgraph ROUTING ["🚦 Routing Layer"]
+                cert("🔐 Cert-Mgr")
+                traefik("🏁 Traefik v3")
+                envoy("🛡️ Envoy v1.6")
+            end
+
+            subgraph APPS ["📦 Workloads"]
+                app("📱 User Apps")
+            end
         end
     end
 
     %% ==========================================
-    %% 4. STORAGE LAYER
+    %% 4. STORAGE
     %% ==========================================
     subgraph S4 ["💾 Persistence"]
-        longhorn[("📦 <b>Longhorn</b><br/>(Distributed Block Storage)")]
+        longhorn[("📦 <b>Longhorn</b><br/>(Distributed Block)")]
     end
 
     %% ==========================================
@@ -75,22 +87,27 @@ graph LR
     %% Admin Path
     admin == "Manage" ==> vip
     vip ==> api
+    api -.-> CP_NODES
 
     %% User Path (Legacy)
-    user -- "https://*.101.sslip.io" --> lb_legacy
-    lb_legacy == "Routes to" ==> traefik
-    traefik --> my_app
+    user -- "Legacy" --> legacy_ip
+    legacy_ip == "Routes to" ==> traefik
+    traefik --> app
 
     %% User Path (Modern)
-    user -- "https://*.102.sslip.io" --> lb_modern
-    lb_modern == "Routes to" ==> envoy
-    envoy --> my_app
+    user -- "Modern" --> modern_ip
+    modern_ip == "Routes to" ==> envoy
+    envoy --> app
 
     %% Internal Wiring
-    certmgr -. "Injects Secrets" .- traefik
-    certmgr -. "Injects Secrets" .- envoy
+    cert -. "Injects" .- traefik
+    cert -. "Injects" .- envoy
 
-    my_app == "PVC Mount" ==> longhorn
+    app == "PVC" ==> longhorn
+
+    %% Physical Hosting (Conceptual)
+    WK_NODES -.- ROUTING
+    WK_NODES -.- APPS
 
     %% ==========================================
     %% STYLING
@@ -101,16 +118,23 @@ graph LR
     style S4 fill:#fff3e0,stroke:#e65100
 
     style CP fill:#e1f5fe,stroke:#0277bd
-    style ROUTING fill:#f3e5f5,stroke:#7b1fa2
-    style APPS fill:#fff,stroke:#333
+    style WORKERS fill:#f3e5f5,stroke:#7b1fa2
 
     style vip fill:#ffcdd2,stroke:#c62828
-    style lb_legacy fill:#fff9c4,stroke:#fbc02d
-    style lb_modern fill:#bbdefb,stroke:#1976d2
+    style legacy_ip fill:#fff9c4,stroke:#fbc02d
+    style modern_ip fill:#bbdefb,stroke:#1976d2
 
-    style certmgr fill:#263238,stroke:#000,color:#fff
+    style cp1 fill:#fff,stroke:#0277bd
+    style cp2 fill:#fff,stroke:#0277bd
+    style cp3 fill:#fff,stroke:#0277bd
+
+    style wk1 fill:#fff,stroke:#7b1fa2
+    style wk2 fill:#fff,stroke:#7b1fa2
+    style wk3 fill:#fff,stroke:#7b1fa2
+
     style traefik fill:#fff9c4,stroke:#fbc02d
     style envoy fill:#bbdefb,stroke:#1976d2
+    style cert fill:#263238,stroke:#000,color:#fff
 ```
 
 ---

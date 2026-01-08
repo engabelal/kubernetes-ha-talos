@@ -278,7 +278,6 @@ kubectl get nodes -o wide
 | Service | URL | Access Protocol |
 | :--- | :--- | :--- |
 | **🚀 Envoy Demo** | `http://demo.172.16.16.102.sslip.io` | **Modern Path (.102)** |
-| **👾 KubeInvaders** | `http://kubeinvaders.172.16.16.102.sslip.io` | **Modern Path (.102)** |
 | **🚦 Whoami App** | `https://whoami.172.16.16.101.sslip.io` | **Legacy Path (.101)** |
 | **🖥️ Headlamp Dashboard**| `https://headlamp.172.16.16.101.sslip.io` | Web UI |
 | **💿 Longhorn UI** | `http://longhorn.172.16.16.101.sslip.io` | Web UI |

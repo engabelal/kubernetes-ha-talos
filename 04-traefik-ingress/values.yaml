@@ -1,0 +1,22 @@
+# Default values for Traefik custom configuration
+service:
+  enabled: true
+  type: LoadBalancer
+  # Optional: specific loadBalancerIP if you want to pin it (e.g., 172.16.16.101)
+  # loadBalancerIP: "172.16.16.101"
+
+ports:
+  web:
+    exposedPort: 80
+  websecure:
+    exposedPort: 443
+
+# Security: run as non-root
+deployment:
+  podAnnotations: {}
+  additionalContainers: []
+  initContainers: []
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true # This makes Traefik the default ingress for the cluster

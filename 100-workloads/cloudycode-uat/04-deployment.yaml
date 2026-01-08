@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudycode-uat
+  namespace: cloudycode-uat
+  labels:
+    app: cloudycode-uat
+    security.policy: restricted
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudycode-uat
+  template:
+    metadata:
+      labels:
+        app: cloudycode-uat
+        security.policy: restricted
+    spec:
+      serviceAccountName: cloudycode-uat-sa
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: updater
+          image: alpine:3.23
+          workingDir: /repo
+          env:
+            - name: BRANCH
+              value: "dev/uat"  # Change branch here only! #from here you can set the branch to deploy
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache git rsync
+              exec /bin/sh /scripts/entrypoint.sh
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+            - name: shared
+              mountPath: /shared
+            - name: updater-script
+              mountPath: /scripts/entrypoint.sh
+              subPath: entrypoint.sh
+            - name: tmp-volume
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+              ephemeral-storage: "500Mi"
+            limits:
+              cpu: 300m
+              memory: 256Mi
+              ephemeral-storage: "2Gi"
+        - name: uat-site
+          image: nginxinc/nginx-unprivileged:1.29.3-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: shared
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            - name: nginx-tmp
+              mountPath: /tmp
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+              ephemeral-storage: "100Mi"
+            limits:
+              cpu: 200m
+              memory: 256Mi
+              ephemeral-storage: "500Mi"
+      volumes:
+        - name: shared
+          persistentVolumeClaim:
+            claimName: cloudycode-uat-data
+        - name: repo
+          emptyDir: {}
+        - name: updater-script
+          configMap:
+            name: cloudycode-uat-updater-script
+            defaultMode: 0755
+        - name: tmp-volume
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: nginx-config

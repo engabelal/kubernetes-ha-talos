@@ -46,7 +46,16 @@ Start your journey here steps 1 through 6:
 | **03** | **[03-metrics-server/](./03-metrics-server/)** | **Monitoring:** Enable `kubectl top` and HPA. |
 | **04** | **[04-traefik-ingress/](./04-traefik-ingress/)** | **Ingress:** Traefik Controller & Magic DNS. |
 | **05** | **[05-cert-manager/](./05-cert-manager/)** | **Security:** HTTPS & Self-Signed Certificates. |
+
 | **06** | **[06-storage-longhorn/](./06-storage-longhorn/)** | **Storage:** Persistent Volumes & Longhorn UI. |
+| **07** | **[07-dashboard-headlamp/](./07-dashboard-headlamp/)** | **Dashboard:** Headlamp UI & Admin Access. |
+
+---
+
+## 🔧 High Availability
+| Doc | Description |
+| :--- | :--- |
+| **[HA-VERIFICATION.md](./HA-VERIFICATION.md)** | Guide for verifying cluster health during node failures. |
 
 ---
 
@@ -67,55 +76,63 @@ kubectl get nodes -o wide
 | **Whoami App** | `http://whoami.172.16.16.101.sslip.io` | HTTP |
 | **Whoami (Secure)**| `https://whoami.172.16.16.101.sslip.io` | HTTPS 🔒 |
 | **Longhorn UI** | `http://longhorn.172.16.16.101.sslip.io` | HTTP |
+| **Headlamp Dashboard** | `https://headlamp.172.16.16.101.sslip.io` | HTTPS 🔒 |
 
 ---
 
 ## 🗺️ High-Level Architecture
 
-```text
-                                    🌍 External World
-                               (Users, Developers, Ingress)
-                                            │
-                                            ▼
-      ┌───────────────────────────────────────────────────────────────────────┐
-      │   🔴 Virtual IP (VIP): 172.16.16.100                                  │
-      │   "The Single Doorway"                                                │
-      │   (Automatically floats to the active Control Plane Leader)           │
-      └──────┬────────────────────────────────────────────────────────────────┘
-             │
-             │  Request Handling
-             ▼
-  ┌─────────────────────────────────────┐      ┌──────────────────────────────┐
-  │  🧠 Control Plane (The Brain)       │      │  💾 Etcd (The Memory)        │
-  │  (API Server, Scheduler, Controller)│◄────►│  (Distributed Database)      │
-  │                                     │      │                              │
-  │  ┌──────┐    ┌──────┐    ┌──────┐   │      │   ✅ cp01  ✅ cp02  ✅ cp03  │
-  │  │ cp01 │    │ cp02 │    │ cp03 │   │      │   (Quorum Established)       │
-  │  └──────┘    └──────┘    └──────┘   │      └──────────────────────────────┘
-  └──────┬───────────┬───────────┬──────┘
-         │           │           │
-         │ Managing  │ Checks    │ Scheduling
-         ▼           ▼           ▼
-  ┌───────────────────────────────────────────────────────────────────────────┐
-  │  💪 Data Plane (The Muscle) - Worker Nodes                                │
-  │                                                                           │
-  │  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐           │
-  │  │      wk01      │    │      wk02      │    │      wk03      │           │
-  │  │  [📦 Pod A]    │    │  [📦 Pod B]    │    │  [📦 Pod C]    │           │
-  │  │  [⚖️ Speaker]   │    │  [⚖️ Speaker]   │    │  [⚖️ Speaker]   │           │
-  │  └───────┬────────┘    └───────┬────────┘    └───────┬────────┘           │
-  │          │                     │                     │                    │
-  └──────────┼─────────────────────┼─────────────────────┼────────────────────┘
-             │                     │                     │
-             └─────────────────────┴─────────────────────┘
-                        ⚖️ MetalLB (Layer 2)
-              "Assigns Real IPs (.101-.120) to Services"
-                        │
-                        ▼
-            🚦 Ingress Controller (Traefik)
-            IP: 172.16.16.101
-            Domain: *.172.16.16.101.sslip.io
-            (Magic DNS for ANY Service!)
+```mermaid
+graph TD
+    user(("🌍 External Users"))
+    dns_traefik["*.101.sslip.io"]
+    dns_envoy["*.102.sslip.io"]
+
+    subgraph Cluster ["🦅 Talos Kubernetes Cluster"]
+        direction TB
+
+        subgraph CP ["🧠 Control Plane (VIP: 172.16.16.100)"]
+            api["API Server"]
+            etcd[("Etcd Datastore")]
+        end
+
+        subgraph L2 ["⚖️ MetalLB (Layer 2)"]
+            direction LR
+            ip_traefik["IP: 172.16.16.101"]
+            ip_envoy["IP: 172.16.16.102"]
+        end
+
+        subgraph Ingress ["🚦 Load Balancers"]
+            traefik["Traefik Ingress Controller"]
+            envoy["Envoy Gateway (Gateway API)"]
+        end
+
+        subgraph Nodes ["💪 Worker Nodes"]
+            pod1("📦 Pods (Apps)")
+            pod2("📦 Pods (Apps)")
+        end
+    end
+
+    user --> dns_traefik
+    user --> dns_envoy
+
+    dns_traefik --> ip_traefik
+    dns_envoy --> ip_envoy
+
+    ip_traefik --> traefik
+    ip_envoy --> envoy
+
+    traefik --> pod1
+    envoy --> pod2
+
+    api -.-> traefik
+    api -.-> envoy
+
+    style Cluster fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style CP fill:#e1f5fe,stroke:#01579b
+    style L2 fill:#fff3e0,stroke:#ff6f00
+    style Ingress fill:#e8f5e9,stroke:#2e7d32
+    style Nodes fill:#f3e5f5,stroke:#7b1fa2
 ```
 
 ## 🌐 Network & IP Plan
@@ -129,5 +146,6 @@ kubectl get nodes -o wide
 | `172.16.16.151` | `wk02` | Worker Node 02 |
 | `172.16.16.152` | `wk03` | Worker Node 03 |
 | **`172.16.16.100`** | **VIP** | **Control Plane VIP** |
-| **`172.16.16.101`** | **Ingress** | **Traefik LoadBalancer** |
+| **`172.16.16.101`** | **Traefik** | **Standard Ingress** |
+| **`172.16.16.102`** | **Envoy** | **Gateway API** |
 | `172.16.16.101-120` | MetalLB | Service IP Pool |

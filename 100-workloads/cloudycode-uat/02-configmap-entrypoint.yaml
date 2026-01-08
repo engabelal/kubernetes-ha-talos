@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudycode-uat-updater-script
+  namespace: cloudycode-uat
+data:
+  entrypoint.sh: |-
+    #!/bin/sh
+    set -e
+
+    BRANCH="$BRANCH"
+    REPO="https://github.com/engabelal/cloudycode.dev.git"
+
+    echo "[Updater] Branch: $BRANCH"
+
+    # Fix git ownership issue
+    git config --global --add safe.directory /repo
+
+    cd /repo
+
+    # First-time clone
+    if [ ! -d "/repo/.git" ]; then
+        echo "[Init] Cloning repo..."
+        git clone --depth 1 --single-branch --branch "$BRANCH" "$REPO" /repo
+    else
+        echo "[Init] Repo exists. Updating..."
+        git fetch origin "$BRANCH"
+        git checkout "$BRANCH"
+        git pull --rebase --autostash
+    fi
+
+    # Initial sync
+    rsync -a --delete --exclude='.git' /repo/ /shared/
+
+    # Watch loop
+    while true; do
+        sleep 5
+        git fetch origin "$BRANCH"
+        LOCAL=$(git rev-parse HEAD)
+        REMOTE=$(git rev-parse origin/$BRANCH)
+
+        if [ "$LOCAL" != "$REMOTE" ]; then
+          echo "[UPDATE] Change detected..."
+          git pull --rebase --autostash
+          rsync -a --delete --exclude='.git' /repo/ /shared/
+          echo "[UPDATE] Done."
+        fi
+    done

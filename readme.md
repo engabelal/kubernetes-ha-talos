@@ -84,55 +84,73 @@ kubectl get nodes -o wide
 
 ```mermaid
 graph TD
-    user(("🌍 External Users"))
-    dns_traefik["*.101.sslip.io"]
-    dns_envoy["*.102.sslip.io"]
+    %% Users and DNS
+    user(("🌍 Internet / Users"))
 
+    subgraph DNS ["🌐 DNS Resolution (sslip.io)"]
+        direction LR
+        dns_legacy["*.101.sslip.io"]
+        dns_modern["*.102.sslip.io"]
+    end
+
+    %% Network Entry
     subgraph Cluster ["🦅 Talos Kubernetes Cluster"]
         direction TB
 
-        subgraph CP ["🧠 Control Plane (VIP: 172.16.16.100)"]
+        %% Control Plane
+        subgraph CP ["🧠 Control Plane (VIP: .100)"]
             api["API Server"]
-            etcd[("Etcd Datastore")]
+            etcd[("Etcd")]
         end
 
-        subgraph L2 ["⚖️ MetalLB (Layer 2)"]
-            direction LR
+        %% Layer 2 Load Balancing
+        subgraph L2 ["⚖️ Layer 2 MetalLB"]
+            direction TB
             ip_traefik["IP: 172.16.16.101"]
             ip_envoy["IP: 172.16.16.102"]
         end
 
-        subgraph Ingress ["🚦 Load Balancers"]
-            traefik["Traefik Ingress Controller"]
-            envoy["Envoy Gateway (Gateway API)"]
+        %% Layer 7 Routing (The Core Request)
+        subgraph L7 ["🚦 Traffic Controllers"]
+            direction LR
+
+            subgraph Path1 ["📉 Legacy Path (Ingress API)"]
+                style Path1 fill:#f5f5f5,stroke:#9e9e9e,stroke-dasharray: 5 5
+                traefik["🏁 Traefik Controller<br/>(Ingress Class: traefik)"]
+            end
+
+            subgraph Path2 ["🚀 Modern Path (Gateway API)"]
+                style Path2 fill:#e3f2fd,stroke:#2196f3,stroke-width:2px
+                envoy["🛡️ Envoy Gateway<br/>(Gateway Class: eg)"]
+            end
         end
 
-        subgraph Nodes ["💪 Worker Nodes"]
-            pod1("📦 Pods (Apps)")
-            pod2("📦 Pods (Apps)")
+        %% Workloads
+        subgraph Workloads ["📦 Application Workloads"]
+            app1["Old App (Ingress)"]
+            app2["New App (HTTPRoute)"]
         end
     end
 
-    user --> dns_traefik
-    user --> dns_envoy
-
-    dns_traefik --> ip_traefik
-    dns_envoy --> ip_envoy
+    %% Connections
+    user ==> DNS
+    dns_legacy -.-> ip_traefik
+    dns_modern == "Modern Traffic" ==> ip_envoy
 
     ip_traefik --> traefik
-    ip_envoy --> envoy
+    ip_envoy ==> envoy
 
-    traefik --> pod1
-    envoy --> pod2
+    traefik --> app1
+    envoy ==> app2
 
-    api -.-> traefik
-    api -.-> envoy
-
-    style Cluster fill:#f9f9f9,stroke:#333,stroke-width:2px
-    style CP fill:#e1f5fe,stroke:#01579b
-    style L2 fill:#fff3e0,stroke:#ff6f00
-    style Ingress fill:#e8f5e9,stroke:#2e7d32
-    style Nodes fill:#f3e5f5,stroke:#7b1fa2
+    %% Styling
+    style Cluster fill:#fafafa,stroke:#333,stroke-width:2px
+    style CP fill:#e0f7fa,stroke:#006064
+    style L2 fill:#fff3e0,stroke:#e65100
+    style L7 fill:#fff,stroke:#fff
+    style traefik fill:#eee,stroke:#333
+    style envoy fill:#2979ff,stroke:#0d47a1,color:#fff
+    style Workloads fill:#f3e5f5,stroke:#7b1fa2
 ```
 
 ## 🌐 Network & IP Plan

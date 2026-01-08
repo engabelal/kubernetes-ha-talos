@@ -18,11 +18,11 @@ spec:
       serviceAccountName: kubeinvaders
       containers:
       - name: kubeinvaders
-        image: luckysideburn/kubeinvaders:latest
-        imagePullPolicy: Always
+        image: luckysideburn/kubeinvaders:v1.9.6
+        imagePullPolicy: IfNotPresent
         env:
         - name: TARGET_NAMESPACE
-          value: "default" # Target the default namespace for chaos
+          value: "default"
         - name: ROUTE_HOST
           value: "kubeinvaders.172.16.16.102.sslip.io"
         ports:
@@ -38,7 +38,7 @@ spec:
           httpGet:
             path: /
             port: 8080
-          initialDelaySeconds: 15
+          initialDelaySeconds: 45
           periodSeconds: 20
 ---
 apiVersion: v1

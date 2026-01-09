@@ -21,4 +21,4 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: my-tls-secret # Ensure this secret exists if using HTTPS
+          - name: allsvc-tls-secret-envoy # Ensure this secret exists if using HTTPS

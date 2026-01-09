@@ -25,7 +25,7 @@ We use a **single shared Gateway** for all services. This is the recommended pro
 │                     ONE-TIME SETUP (Admin)                       │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
 │  │ GatewayClass │  │   Gateway    │  │ Wildcard Certificate │   │
-│  │   (eg)       │──│ (Listener)   │──│ (*.102.sslip.io)     │   │
+│  │ (envoy-gw)   │──│ (Listener)   │──│ (*.102.sslip.io)     │   │
 │  └──────────────┘  └──────────────┘  └──────────────────────┘   │
 │                           │                                      │
 │                     172.16.16.102                                │
@@ -67,7 +67,7 @@ We use a **single shared Gateway** for all services. This is the recommended pro
 
 ```bash
 # Step 1: Install Envoy Gateway controller
-helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.6.1 \
+helm install envoy-gw oci://docker.io/envoyproxy/gateway-helm --version v1.6.1 \
   -n envoy-gateway-system \
   --create-namespace
 
@@ -83,7 +83,7 @@ kubectl get gateway -n default
 
 | Resource | Name | Purpose |
 |:---|:---|:---|
-| `GatewayClass` | `eg` | Tells K8s to use Envoy for Gateway resources |
+| `GatewayClass` | `envoy-gw` | Tells K8s to use Envoy for Gateway resources |
 | `Gateway` | `my-envoy-gateway` | Listens on port 80/443, accepts routes from ALL namespaces |
 | `Certificate` | `envoy-wildcard-cert` | Wildcard TLS for `*.172.16.16.102.sslip.io` |
 | `Secret` | `envoy-tls-secret` | Auto-created by cert-manager (contains the cert) |

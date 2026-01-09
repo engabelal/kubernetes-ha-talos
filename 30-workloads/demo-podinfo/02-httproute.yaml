@@ -6,6 +6,7 @@ metadata:
 spec:
   parentRefs:
     - name: my-envoy-gateway
+      namespace: envoy-gateway-system
   hostnames:
     - "demo.172.16.16.102.sslip.io"  # Domain 1: Magic DNS
     - "example.local"                # Domain 2: Custom / Other Domain

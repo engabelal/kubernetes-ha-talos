@@ -16,7 +16,7 @@ spec:
   # └─────────────────────────────────────────────────────────────┘
   parentRefs:
     - name: my-envoy-gateway
-      namespace: default
+      namespace: envoy-gateway-system
 
   # ┌─────────────────────────────────────────────────────────────┐
   # │ CUSTOMIZE: Your service's hostname                         │

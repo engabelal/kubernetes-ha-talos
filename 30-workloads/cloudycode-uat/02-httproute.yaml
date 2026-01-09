@@ -6,7 +6,7 @@ metadata:
 spec:
   parentRefs:
     - name: my-envoy-gateway # Gateway name
-      namespace: default # Gateway namespace
+      namespace: envoy-gateway-system # Gateway namespace
   hostnames:
     - "uat.172.16.16.102.sslip.io"  # Domain 1: Magic DNS
   rules:

@@ -1,0 +1,19 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cloudycode-route
+  namespace: cloudycode-uat
+spec:
+  parentRefs:
+    - name: my-envoy-gateway
+      namespace: default
+  hostnames:
+    - "uat.172.16.16.102.sslip.io"  # Domain 1: Magic DNS
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: cloudycode-uat-svc
+          port: 80

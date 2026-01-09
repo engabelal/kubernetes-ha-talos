@@ -14,7 +14,7 @@ helm repo update
 
 ### 2. Install
 ```bash
-helm install my-headlamp headlamp/headlamp --namespace kube-system
+helm install my-headlamp headlamp/headlamp --namespace headlamp --create-namespace
 ```
 
 ### 3. Apply Configuration
@@ -33,6 +33,6 @@ kubectl apply -f 07-dashboard-headlamp/service-account.yaml
 To log in, use the token from the `headlamp-admin` ServiceAccount:
 
 ```bash
-kubectl -n kube-system get secret headlamp-admin-token -o go-template='{{.data.token | base64decode}}' && echo
+kubectl -n headlamp get secret headlamp-admin-token -o go-template='{{.data.token | base64decode}}' && echo
 ```
 Copy the long string starting with `eyJ...` and paste it into the Headlamp login screen.

@@ -1,34 +1,40 @@
-# 📊 Kubernetes Metrics Server
+# ⚖️ MetalLB - Bare Metal Load Balancer
 
-The **Metrics Server** collects resource usage data (CPU/RAM) from the Kubelets and exposes them via the `metrics.k8s.io` API. This is required for `kubectl top` and **Horizontal Pod Autoscalers (HPA)**.
+MetalLB provides **LoadBalancer** service type support for bare-metal Kubernetes clusters.
 
-## 🛠️ Installation
+## 🎯 Purpose
 
-We use the official **v0.8.0** manifest, patched for Talos (Self-Signed Certs).
+In cloud environments, `type: LoadBalancer` gets a public IP automatically. On bare-metal, MetalLB fills this gap by announcing IPs via ARP (Layer 2).
 
-### 1. Apply Manifest
+## 📦 Installation
+
 ```bash
-kubectl apply -f metrics-server.yaml
+# Install MetalLB
+kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.15.3/config/manifests/metallb-native.yaml
+
+# Wait for pods
+kubectl wait --namespace metallb-system \
+  --for=condition=ready pod \
+  --selector=app=metallb \
+  --timeout=90s
+
+# Apply IP Pool config
+kubectl apply -f metallb/metallb-config.yaml
 ```
 
-> **ℹ️ Note:** The included `metrics-server.yaml` has been patched with `--kubelet-insecure-tls`. This is necessary because Talos Kubelets use self-signed certificates, which the Metrics Server would otherwise reject.
+## 🌐 IP Pool Configuration
 
-### 2. Verify Installation
-Check that the pod is running in `kube-system`.
-```bash
-kubectl get pods -n kube-system -l k8s-app=metrics-server
-```
+| Pool Name | Range | Usage |
+|:---|:---|:---|
+| `main-pool` | `172.16.16.100-120` | VIP + Ingress + Services |
 
-### 3. Test Functionality
-Wait about **60 seconds**, then run:
-```bash
-kubectl top nodes
-```
+**Key IPs:**
+- `.100` → Control Plane VIP
+- `.101` → Traefik (Legacy Ingress)
+- `.102` → Envoy (Gateway API)
 
-*Expected Output:*
-```
-NAME   CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
-cp01   124m         6%     1340Mi          8%
-wk01   45m          2%     780Mi           4%
-...
-```
+## 📁 Files
+
+| File | Purpose |
+|:---|:---|
+| `metallb/metallb-config.yaml` | IP pool and L2 advertisement |

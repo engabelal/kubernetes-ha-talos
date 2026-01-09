@@ -258,7 +258,8 @@ kubernetes-ha-talos/
 │
 ├── 10-platform/              # 🏗️ Core Infrastructure (Admin)
 │   ├── talos/                #    OS Bootstrap & Config
-│   ├── networking/           #    MetalLB + Metrics Server
+│   ├── networking/           #    MetalLB Load Balancer
+│   ├── observability/        #    Metrics Server
 │   ├── storage/              #    Longhorn Distributed Storage
 │   └── security/             #    Cert-Manager & TLS
 │

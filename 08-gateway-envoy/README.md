@@ -60,6 +60,27 @@ graph LR
 
 ---
 
+## 🏗️ Shared Gateway Architecture
+
+We utilize a **Shared Gateway** pattern to maximize efficiency and mimic a production cloud environment:
+
+1.  **Single Gateway (Infrastructure):**
+    *   One Gateway resource (`my-envoy-gateway`) in the `default` namespace.
+    *   Acquires a **Single LoadBalancer IP** (`172.16.16.102`) from MetalLB.
+    *   Configured with `allowedRoutes: namespaces: from: All` to accept routes from any namespace.
+
+2.  **Distributed Routes (Application):**
+    *   Each application uses its own `HTTPRoute` in its own Namespace.
+    *   Application teams manage their routing logic (paths, headers) independently.
+    *   All routes merge into the single Listener on the Shared Gateway.
+
+**Benefits:**
+*   ✅ **Cost Efficient:** Uses only 1 Public IP for N services.
+*   ✅ **Centralized Security:** TLS termination and Policies managed at the Gateway level.
+*   ✅ **Developer Autonomy:** app teams own their `HTTPRoute` config.
+
+---
+
 ## 🚀 Quick Start
 
 ### Step 1: Install Controller (One-Time)

@@ -11,7 +11,7 @@ spec:
       protocol: HTTP
       allowedRoutes:
         namespaces:
-          from: All
+          from: All # Allow all namespaces to use this gateway
     - name: https
       port: 443
       protocol: HTTPS

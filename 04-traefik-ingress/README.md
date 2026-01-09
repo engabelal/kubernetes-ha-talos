@@ -36,7 +36,8 @@ helm repo update
 We use a custom `values.yaml` to set it as the **Default Ingress Class**.
 ```bash
 helm install traefik traefik/traefik \
-  --namespace kube-system \
+  --namespace traefik-system \
+  --create-namespace \
   --values values.yaml
 ```
 
@@ -47,7 +48,7 @@ helm install traefik traefik/traefik \
 ### 3. Verify Installation
 Check that Traefik has an **EXTERNAL-IP** (assigned by MetalLB).
 ```bash
-kubectl get svc -n kube-system traefik
+kubectl get svc -n traefik-system traefik
 ```
 *Output: `EXTERNAL-IP: 172.16.16.101`*
 

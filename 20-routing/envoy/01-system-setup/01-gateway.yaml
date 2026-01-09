@@ -4,7 +4,7 @@ metadata:
   name: my-envoy-gateway
   namespace: envoy-gateway-system  # Co-located with the controller
 spec:
-  gatewayClassName: eg
+  gatewayClassName: envoy-gw
   listeners:
     - name: http
       port: 80

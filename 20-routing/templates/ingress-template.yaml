@@ -9,7 +9,7 @@ metadata:
     cert-manager.io/cluster-issuer: "selfsigned-issuer" # Change for production
 spec:
   rules:
-    - host: <service>.172.16.16.101.sslip.io  # Traefik IP
+    - host: <service>.172.16.16.101.sslip.io  # Traefik IP exposed from metallb
       http:
         paths:
           - path: /
@@ -19,6 +19,7 @@ spec:
                 name: <service-name>
                 port:
                   number: 80
+  # ingress tls
   tls:
     - hosts:
         - <service>.172.16.16.101.sslip.io

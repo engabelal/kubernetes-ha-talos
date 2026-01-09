@@ -41,4 +41,4 @@ spec:
         certificateRefs:
           # This secret is created by cert-manager from 02-certificate.yaml
           # It contains the wildcard certificate for *.172.16.16.102.sslip.io
-          - name: envoy-tls-secret
+          - name: envoy-tls-secret-all-svcs

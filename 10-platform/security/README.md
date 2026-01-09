@@ -1,56 +1,181 @@
-# 🔐 Cert-Manager & Self-Signed SSL
+# 🔐 Cert-Manager & TLS Certificates
 
-**Cert-Manager** creates a "Certificate Authority" (CA) inside your Kubernetes cluster. It watches Ingress resources and automatically issues certificates to secure them (HTTPS).
+**Cert-Manager** automates TLS certificate management in Kubernetes. It watches for Certificate resources and automatically issues, renews, and stores certificates as Secrets.
 
-## 🧠 Core Concept: The "Chain of Trust"
+---
 
-1.  **Issuer:** The entity that signs the certificates. We created a **Self-Signed Issuer**, meaning "I vouch for myself".
-2.  **Certificate:** The digital ID card for your website (`whoami...`).
-3.  **Browser Trust:** Browsers (Chrome/Safari) trust strict list of global authorities (Google, DigiCert). They **do not** trust your local Self-Signed issuer by default.
+## 🏗️ Architecture: How Cert-Manager Works
 
-> **Note:** This is why you see the `Not Secure` warning. The encryption is real (AES-256), but the *Trust* is missing. In production, we use **Let's Encrypt** (ACME) which *is* trusted.
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SELF-SIGNED (Development/Lab)                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐              │
+│  │ ClusterIssuer│      │ Certificate  │      │   Secret     │              │
+│  │ (selfsigned) │─────▶│ (your-cert)  │─────▶│ (your-tls)   │              │
+│  └──────────────┘      └──────────────┘      └──────────────┘              │
+│         │                     │                     │                       │
+│         │              Cert-Manager           Auto-Created!                 │
+│         │              generates cert         (No manual Secret needed)     │
+│         ▼                                                                   │
+│  ┌──────────────┐                                                          │
+│  │    LOCAL     │  ← No external connection needed                         │
+│  │   SIGNING    │  ← Perfect for development/testing                       │
+│  └──────────────┘  ← ⚠️ Browser shows "Not Trusted" warning               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         LET'S ENCRYPT (Production)                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐              │
+│  │ ClusterIssuer│      │ Certificate  │      │   Secret     │              │
+│  │ (letsencrypt)│─────▶│ (your-cert)  │─────▶│ (your-tls)   │              │
+│  └──────────────┘      └──────────────┘      └──────────────┘              │
+│         │                     │                     │                       │
+│         │              Cert-Manager           Auto-Created!                 │
+│         │              requests cert                                        │
+│         ▼                                                                   │
+│  ┌──────────────┐                                                          │
+│  │ ACME Server  │  ← Connects to Let's Encrypt API                         │
+│  │ (Internet)   │  ← Validates domain ownership (HTTP-01 or DNS-01)        │
+│  └──────────────┘  ← ✅ Browser shows "Trusted" green lock                 │
+│                                                                             │
+│  Requirements:                                                              │
+│  - Public IP accessible from internet                                       │
+│  - Real domain name (not sslip.io)                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔄 Certificate Lifecycle
+
+```
+You Create:                     Cert-Manager Creates:
+┌──────────────┐                ┌──────────────┐
+│ Certificate  │  ───────────▶  │   Secret     │
+│   (YAML)     │    Automatic   │ (kubernetes  │
+│              │                │  .io/tls)    │
+└──────────────┘                └──────────────┘
+                                     │
+                                     ▼
+                               Contains:
+                               - tls.crt (certificate)
+                               - tls.key (private key)
+                               - ca.crt  (CA certificate)
+```
+
+> [!IMPORTANT]
+> You **never** need to create `kind: Secret` for TLS manually!
+> Cert-Manager automatically creates and manages it.
+
+---
+
+## 📂 Files
+
+| # | File | Purpose |
+|:---|:---|:---|
+| 00 | `00-cert-manager.yaml` | Install cert-manager controller |
+| 01 | `01-self-signed-issuer.yaml` | ClusterIssuer for self-signed certs |
 
 ---
 
 ## 🛠️ Installation
 
-### 1. Install Cert-Manager
-Apply the official manifest (v1.16.2).
+### Step 1: Install Cert-Manager
+
 ```bash
-kubectl apply -f cert-manager.yaml
+kubectl apply -f 00-cert-manager.yaml
+
+# Wait for pods to be ready
+kubectl wait --for=condition=ready pod -l app=cert-manager -n cert-manager --timeout=60s
 ```
 
-**Components:**
-*   `cert-manager`: The controller.
-*   `webhook`: Validates resources (Important!).
-*   `cainjector`: Injects CA bundles.
+**Components Installed:**
+- `cert-manager`: Main controller
+- `webhook`: Validates Certificate resources
+- `cainjector`: Injects CA bundles into resources
 
-### 2. Configure Issuer (Self-Signed)
-We create a `ClusterIssuer` (Global Issuer) that simply signs certificates itself.
+### Step 2: Create Self-Signed Issuer
+
 ```bash
-kubectl apply -f self-signed-issuer.yaml
+kubectl apply -f 01-self-signed-issuer.yaml
 ```
 
 ---
 
-## 🧪 Validation (HTTPS Test)
+## 🔐 Creating a Certificate
 
-Let's update our `whoami` app to use HTTPS.
+### For Ingress (Traefik):
+Add annotation to your Ingress - cert-manager handles the rest!
 
-**1. Apply Secured Ingress:**
-```bash
-kubectl apply -f test-ingress-ssl.yaml
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: "selfsigned-issuer"  # 👈 Magic annotation
+spec:
+  tls:
+    - hosts:
+        - app.example.com
+      secretName: app-tls-secret  # 👈 Cert-Manager creates this Secret
 ```
-*This asks Cert-Manager: "Please give me a cert for `whoami.172.16.16.101.sslip.io`!"*
 
-**2. Verify Certificate:**
-```bash
-kubectl get certificates
-kubectl get secrets | grep tls
+### For Gateway API (Envoy):
+Create a Certificate resource explicitly:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: my-cert
+spec:
+  secretName: my-tls-secret  # 👈 Cert-Manager creates this Secret
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.example.com"
 ```
 
-**3. Test with Curl (Insecure):**
-Since it's self-signed, we use `-k` to ignore the trust warning.
+---
+
+## 🔍 Useful Commands
+
 ```bash
-curl -k https://whoami.172.16.16.101.sslip.io
+# List all certificates
+kubectl get certificates -A
+
+# Check certificate details
+kubectl describe certificate <name> -n <namespace>
+
+# List TLS secrets
+kubectl get secrets -A | grep "kubernetes.io/tls"
+
+# View certificate expiry
+kubectl get certificate <name> -o jsonpath='{.status.notAfter}'
 ```
+
+---
+
+## 🆚 Self-Signed vs Let's Encrypt
+
+| Feature | Self-Signed | Let's Encrypt |
+|:---|:---|:---|
+| **Browser Trust** | ❌ Warning | ✅ Trusted |
+| **Internet Required** | No | Yes |
+| **Real Domain Needed** | No | Yes |
+| **Use Case** | Dev/Lab | Production |
+| **Cost** | Free | Free |
+
+---
+
+## 📚 Resources
+
+- [Cert-Manager Docs](https://cert-manager.io/docs/)
+- [Let's Encrypt](https://letsencrypt.org/)

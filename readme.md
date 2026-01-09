@@ -237,7 +237,7 @@ graph LR
 
 | Component | Software | Version | Purpose |
 | :--- | :--- | :--- | :--- |
-| **OS** | [Talos Linux](https://www.talos.dev/) | `v1.9.1` | Security-first, API-managed OS |
+| **OS** | [Talos Linux](https://www.talos.dev/) | `v1.12.1` | Security-first, API-managed OS |
 | **Orchestrator** | Kubernetes | `v1.35.0` | Container orchestration engine |
 | **CNI** | Flannel | `v0.26.x` | Pod networking & VXLAN overlay |
 | **Load Balancer** | MetalLB | `v0.15.3` | Layer 2 bare-metal LoadBalancer |

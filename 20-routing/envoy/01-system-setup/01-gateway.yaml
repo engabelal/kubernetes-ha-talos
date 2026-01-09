@@ -1,24 +1,44 @@
+# Shared Gateway for Envoy Gateway API
+# =====================================
+# This Gateway serves as the SINGLE entry point for all HTTPRoutes in the cluster.
+# It acquires an IP from MetalLB and handles TLS termination centrally.
+
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: my-envoy-gateway
-  namespace: envoy-gateway-system  # Co-located with the controller
+  namespace: envoy-gateway-system  # Co-located with the Envoy controller
 spec:
   gatewayClassName: envoy-gw
+
   listeners:
+    # ┌─────────────────────────────────────────────────────────────┐
+    # │ HTTP Listener (Port 80)                                     │
+    # │ Accepts unencrypted traffic from any namespace              │
+    # └─────────────────────────────────────────────────────────────┘
     - name: http
       port: 80
       protocol: HTTP
       allowedRoutes:
         namespaces:
-          from: All # Allow all namespaces to use this gateway
+          from: All  # Cross-namespace routing enabled
+
+    # ┌─────────────────────────────────────────────────────────────┐
+    # │ HTTPS Listener (Port 443) - TLS Termination                 │
+    # │ Decrypts HTTPS traffic here, forwards plain HTTP to pods    │
+    # └─────────────────────────────────────────────────────────────┘
     - name: https
       port: 443
       protocol: HTTPS
       allowedRoutes:
         namespaces:
-          from: All
+          from: All  # Cross-namespace routing enabled
       tls:
+        # TLS Termination Mode:
+        # - "Terminate": Gateway decrypts HTTPS, sends HTTP to backend (most common)
+        # - "Passthrough": Gateway forwards encrypted traffic to backend (backend handles TLS)
         mode: Terminate
         certificateRefs:
-          - name: allsvc-tls-secret-envoy # Ensure this secret exists if using HTTPS
+          # This secret is created by cert-manager from 02-certificate.yaml
+          # It contains the wildcard certificate for *.172.16.16.102.sslip.io
+          - name: envoy-tls-secret

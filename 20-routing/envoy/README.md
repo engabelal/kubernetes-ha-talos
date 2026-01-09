@@ -119,7 +119,7 @@ metadata:
 spec:
   parentRefs:
     - name: my-envoy-gateway      # ✅ Points to shared Gateway
-      namespace: default
+      namespace: envoy-gateway-system
   hostnames:
     - "belal.172.16.16.102.sslip.io"  # ✅ Your unique subdomain
   rules:
@@ -157,7 +157,21 @@ Each service needed:
 ### Gateway API (New Way)
 Admin creates once:
 - **Wildcard Certificate** (`*.172.16.16.102.sslip.io`)
-- Gateway references this certificate
+- Gateway references this certificate in `tls.certificateRefs`
+
+**TLS Termination Explained:**
+```
+User Browser                    Gateway                      Pod
+    │                              │                          │
+    │── HTTPS (encrypted) ────────▶│                          │
+    │                              │── HTTP (plain) ─────────▶│
+    │                              │                          │
+    │◀───────── Response ──────────│◀────── Response ─────────│
+```
+
+The Gateway **terminates** (decrypts) HTTPS traffic:
+- `tls.mode: Terminate` = Gateway handles SSL, backend receives plain HTTP
+- `tls.mode: Passthrough` = Gateway forwards encrypted traffic, backend handles SSL
 
 Developers:
 - Just create HTTPRoute

@@ -1,0 +1,25 @@
+# Ingress Template for Traefik
+# Copy this file and customize for your service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: <service-name>-ingress
+  namespace: <your-namespace>
+  annotations:
+    cert-manager.io/cluster-issuer: "selfsigned-issuer" # Change for production
+spec:
+  rules:
+    - host: <service>.172.16.16.101.sslip.io  # Traefik IP
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: <service-name>
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - <service>.172.16.16.101.sslip.io
+      secretName: <service>-tls

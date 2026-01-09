@@ -1,0 +1,21 @@
+# HTTPRoute Template for Envoy Gateway
+# Copy this file and customize for your service
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: <service-name>-route
+  namespace: <your-namespace>
+spec:
+  parentRefs:
+    - name: my-envoy-gateway      # Shared Gateway name
+      namespace: default          # Gateway namespace
+  hostnames:
+    - "<service>.172.16.16.102.sslip.io"  # Envoy IP
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: <service-name>
+          port: 80

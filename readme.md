@@ -251,17 +251,30 @@ graph LR
 
 ## 📂 Project Structure
 
-| # | Directory | Description |
-| :--- | :--- | :--- |
-| **01** | [01-talos-bootstrap/](./01-talos-bootstrap/) | OS Install & Etcd Init |
-| **02** | [02-metallb/](./02-metallb/) | MetalLB IP Pool |
-| **03** | [03-metrics-server/](./03-metrics-server/) | Metrics Server |
-| **04** | [04-traefik-ingress/](./04-traefik-ingress/) | Traefik Ingress |
-| **05** | [05-cert-manager/](./05-cert-manager/) | TLS Certificates |
-| **06** | [06-storage-longhorn/](./06-storage-longhorn/) | Longhorn Storage |
-| **07** | [07-dashboard-headlamp/](./07-dashboard-headlamp/) | Headlamp UI |
-| **08** | [08-gateway-envoy/](./08-gateway-envoy/) | Envoy Gateway API |
-| **100** | [100-workloads/](./100-workloads/) | Example Workloads |
+```
+kubernetes-ha-talos/
+├── 00-docs/                  # 📚 Centralized Documentation
+│   └── ha-verification.md
+│
+├── 10-platform/              # 🏗️ Core Infrastructure (Admin)
+│   ├── talos/                #    OS Bootstrap & Config
+│   ├── networking/           #    MetalLB + Metrics Server
+│   ├── storage/              #    Longhorn Distributed Storage
+│   └── security/             #    Cert-Manager & TLS
+│
+├── 20-routing/               # 🚦 Unified Routing Layer
+│   ├── traefik/              #    Ingress Controller (Legacy .101)
+│   ├── envoy/                #    Gateway API (Modern .102)
+│   └── templates/            #    Reusable Route Blueprints
+│
+├── 30-workloads/             # 📦 Applications (Developers)
+│   ├── headlamp/             #    Dashboard UI
+│   ├── cloudycode-uat/       #    Example App (Dual-Stack)
+│   └── demo-podinfo/         #    Gateway Demo App
+│
+├── kubeconfig                # Cluster access config
+└── README.md                 # This file
+```
 
 ---
 
@@ -289,4 +302,4 @@ kubectl get nodes -o wide
 
 | Doc | Description |
 | :--- | :--- |
-| [HA-VERIFICATION.md](./HA-VERIFICATION.md) | Guide for verifying cluster health during node failures. |
+| [ha-verification.md](./00-docs/ha-verification.md) | Guide for verifying cluster health during node failures. |

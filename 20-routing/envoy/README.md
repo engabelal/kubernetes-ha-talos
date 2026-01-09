@@ -9,141 +9,172 @@ This module implements the **Kubernetes Gateway API** using **Envoy Gateway v1.6
 
 ## 📂 Directory Structure
 
-| Folder | Purpose |
-| :--- | :--- |
-| `01-system-setup/` | **One-time setup:** GatewayClass, Gateway, and controller installation. |
-| `02-service-templates/` | **Reusable templates:** HTTPRoute blueprints for new services. |
-| `03-example-app/` | **Working demo:** Complete Deployment + HTTPRoute example. |
+| Folder | Purpose | Who Manages? |
+| :--- | :--- | :--- |
+| `01-system-setup/` | **One-time infrastructure:** GatewayClass, Gateway, TLS Certificate | 👨‍💼 **Admin** |
+| `02-service-templates/` | **Reusable blueprints:** HTTPRoute templates for new services | 📋 Reference |
 
 ---
 
-## 🌊 Traffic Flow Architecture
+## 🏗️ Architecture: Shared Gateway Pattern
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'lineColor': '#1976d2', 'fontFamily': 'Inter, sans-serif'}}}%%
+We use a **single shared Gateway** for all services. This is the recommended production pattern:
 
-graph LR
-    subgraph EXTERNAL ["🌐 Internet"]
-        user(("👤 User"))
-        dns["DNS: demo...sslip.io"]
-    end
-
-    subgraph NETWORK ["⚖️ L2 Network"]
-        lb["<b>MetalLB Speaker</b><br/>IP: 172.16.16.102"]
-    end
-
-    subgraph ENVOY ["🛡️ Envoy Gateway (L7)"]
-        gateway["🚪 <b>Gateway</b><br/>(Listener: 80/443)"]
-        route["⚡ <b>HTTPRoute</b><br/>(Rules Engine)"]
-    end
-
-    subgraph APPS ["☸️ Data Plane"]
-        svc["🧩 <b>ClusterIP Svc</b><br/>(Backend)"]
-        pod["📦 <b>App Pods</b><br/>(podinfo)"]
-    end
-
-    %% Flow
-    user -- "HTTPS" --> dns
-    dns -- "ARP/IP" --> lb
-    lb ==> gateway
-    gateway -- "Path Matching" --> route
-    route -- "LoadBalance" --> svc
-    svc --> pod
-
-    %% Styling
-    style ENVOY fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style NETWORK fill:#fff3e0,stroke:#e65100
-    style APPS fill:#f3e5f5,stroke:#7b1fa2
-    style gateway fill:#bbdefb,stroke:#1565c0
-    style route fill:#c8e6c9,stroke:#388e3c
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     ONE-TIME SETUP (Admin)                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │ GatewayClass │  │   Gateway    │  │ Wildcard Certificate │   │
+│  │   (eg)       │──│ (Listener)   │──│ (*.102.sslip.io)     │   │
+│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
+│                           │                                      │
+│                     172.16.16.102                                │
+└───────────────────────────┼─────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+        ▼                   ▼                   ▼
+┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+│  HTTPRoute   │   │  HTTPRoute   │   │  HTTPRoute   │
+│  (App A)     │   │  (App B)     │   │  (App C)     │
+└──────────────┘   └──────────────┘   └──────────────┘
+   PER-SERVICE        PER-SERVICE        PER-SERVICE
+   (Developer)        (Developer)        (Developer)
 ```
 
----
-
-## 🏗️ Shared Gateway Architecture
-
-We utilize a **Shared Gateway** pattern to maximize efficiency and mimic a production cloud environment:
-
-1.  **Single Gateway (Infrastructure):**
-    *   One Gateway resource (`my-envoy-gateway`) in the `default` namespace.
-    *   Acquires a **Single LoadBalancer IP** (`172.16.16.102`) from MetalLB.
-    *   Configured with `allowedRoutes: namespaces: from: All` to accept routes from any namespace.
-
-2.  **Distributed Routes (Application):**
-    *   Each application uses its own `HTTPRoute` in its own Namespace.
-    *   Application teams manage their routing logic (paths, headers) independently.
-    *   All routes merge into the single Listener on the Shared Gateway.
-
 **Benefits:**
-*   ✅ **Cost Efficient:** Uses only 1 Public IP for N services.
-*   ✅ **Centralized Security:** TLS termination and Policies managed at the Gateway level.
-*   ✅ **Developer Autonomy:** app teams own their `HTTPRoute` config.
+- ✅ **Cost Efficient:** Single LoadBalancer IP for all services
+- ✅ **Centralized TLS:** One wildcard certificate covers everything
+- ✅ **Developer Autonomy:** App teams only manage their HTTPRoute
 
 ---
 
-## 🚀 Quick Start
+## ⚙️ Part 1: One-Time Setup (Admin)
 
-### Step 1: Install Controller (One-Time)
+> [!IMPORTANT]
+> This section is done **ONCE** when setting up the cluster. Developers skip this!
+
+### Files in `01-system-setup/`
+
+| # | File | Purpose |
+|:---|:---|:---|
+| 00 | `00-gatewayclass.yaml` | Registers Envoy as the Gateway controller |
+| 01 | `00-install.sh` | Helm installation script |
+| 02 | `01-gateway.yaml` | Creates the shared Gateway (gets IP from MetalLB) |
+| 03 | `02-certificate.yaml` | **Wildcard TLS cert** for `*.172.16.16.102.sslip.io` |
+
+### Installation Commands
 
 ```bash
-# Install Envoy Gateway via Helm
+# Step 1: Install Envoy Gateway controller
 helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.6.1 \
   -n envoy-gateway-system \
   --create-namespace
 
-# Apply GatewayClass
-kubectl apply -f 01-system-setup/00-gatewayclass.yaml
+# Step 2: Apply all system setup files
+kubectl apply -f 20-routing/envoy/01-system-setup/
 
-# Create the main Gateway (Gets IP from MetalLB)
-kubectl apply -f 01-system-setup/01-gateway.yaml
-
-# Verify
-kubectl get gateways -n default
+# Step 3: Verify Gateway has IP
+kubectl get gateway -n default
 # Expected: ADDRESS = 172.16.16.102, PROGRAMMED = True
 ```
 
-### Step 2: Deploy Example App
+### What Gets Created?
 
-```bash
-kubectl apply -f 03-example-app/
+| Resource | Name | Purpose |
+|:---|:---|:---|
+| `GatewayClass` | `eg` | Tells K8s to use Envoy for Gateway resources |
+| `Gateway` | `my-envoy-gateway` | Listens on port 80/443, accepts routes from ALL namespaces |
+| `Certificate` | `envoy-wildcard-cert` | Wildcard TLS for `*.172.16.16.102.sslip.io` |
+| `Secret` | `envoy-tls-secret` | Auto-created by cert-manager (contains the cert) |
+
+---
+
+## 📦 Part 2: Per-Service Setup (Developer)
+
+> [!NOTE]
+> This is what you do **for each new service**. No TLS configuration needed!
+
+### What You Need to Create
+
+For a new service called `nginx-belal`:
+
+```
+30-workloads/nginx-belal/
+├── 00-namespace.yaml      # (Optional) Dedicated namespace
+├── 01-deployment.yaml     # Deployment + Service
+└── 02-httproute.yaml      # 👈 This is the only routing file you need!
 ```
 
-### Step 3: Test
+### HTTPRoute Template
+
+Copy from `02-service-templates/http-route.yaml` or use this:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: nginx-belal-route
+  namespace: nginx-belal
+spec:
+  parentRefs:
+    - name: my-envoy-gateway      # ✅ Points to shared Gateway
+      namespace: default
+  hostnames:
+    - "belal.172.16.16.102.sslip.io"  # ✅ Your unique subdomain
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: nginx-belal-svc   # ✅ Your service name
+          port: 80
+```
+
+### Apply Your Service
 
 ```bash
-curl http://demo.172.16.16.102.sslip.io
-# You should see the podinfo response!
+kubectl apply -f 30-workloads/nginx-belal/
+
+# Test (HTTP)
+curl http://belal.172.16.16.102.sslip.io
+
+# Test (HTTPS) - Works automatically because of Wildcard cert!
+curl -k https://belal.172.16.16.102.sslip.io
 ```
 
 ---
 
-## 📝 Adding New Services
+## 🔐 TLS: How It Works
 
-1. Copy the template:
-   ```bash
-   cp 02-service-templates/http-route.yaml my-new-route.yaml
-   ```
+### Ingress API (Old Way)
+Each service needed:
+- `annotations: cert-manager.io/cluster-issuer`
+- `tls:` section with `secretName`
+- Cert-manager creates a **new certificate per service**
 
-2. Edit `my-new-route.yaml`:
-   - Change `hostnames` to your domain.
-   - Change `backendRefs` to point to your Service.
+### Gateway API (New Way)
+Admin creates once:
+- **Wildcard Certificate** (`*.172.16.16.102.sslip.io`)
+- Gateway references this certificate
 
-3. Apply:
-   ```bash
-   kubectl apply -f my-new-route.yaml
-   ```
+Developers:
+- Just create HTTPRoute
+- **No TLS configuration needed!**
+- Wildcard cert covers all subdomains automatically
 
 ---
 
-## 🆚 Gateway API vs Ingress API
+## 🆚 Quick Comparison: Adding a New Service
 
-| Feature | Ingress API | Gateway API |
-| :--- | :--- | :--- |
-| **Maturity** | Stable (Legacy) | Stable (Modern) |
-| **Expressiveness** | Limited | Rich (Headers, Weights, etc.) |
-| **Multi-tenancy** | Poor | Excellent (Role separation) |
-| **Vendor Lock-in** | Varies | Minimal (Standardized) |
-| **Our Implementation** | Traefik (`.101`) | Envoy (`.102`) |
+| Step | Ingress (Traefik) | Gateway API (Envoy) |
+|:---|:---|:---|
+| 1. Create Namespace | ✅ | ✅ |
+| 2. Create Deployment | ✅ | ✅ |
+| 3. Create Service | ✅ | ✅ |
+| 4. Create Route | `Ingress` (with TLS config) | `HTTPRoute` (no TLS!) |
+| 5. TLS Certificate | Auto-created per service | Uses existing Wildcard |
 
 ---
 
@@ -151,3 +182,4 @@ curl http://demo.172.16.16.102.sslip.io
 
 - [Gateway API Docs](https://gateway-api.sigs.k8s.io/)
 - [Envoy Gateway Docs](https://gateway.envoyproxy.io/)
+- [Cert-Manager + Gateway API](https://cert-manager.io/docs/usage/gateway/)

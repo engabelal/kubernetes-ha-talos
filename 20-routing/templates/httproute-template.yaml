@@ -1,21 +1,37 @@
 # HTTPRoute Template for Envoy Gateway
-# Copy this file and customize for your service
+# =====================================
+# Copy this file to your workload directory and customize the values marked with <...>
+#
+# PREREQUISITE: The shared Gateway must already be set up (see 01-system-setup/)
+# TLS: Handled automatically by the Wildcard certificate - no config needed here!
+
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: <service-name>-route
-  namespace: <your-namespace>
+  name: <your-service>-route        # Example: nginx-belal-route
+  namespace: <your-namespace>       # Example: nginx-belal
 spec:
+  # ┌─────────────────────────────────────────────────────────────┐
+  # │ DO NOT CHANGE THIS SECTION - Points to shared Gateway      │
+  # └─────────────────────────────────────────────────────────────┘
   parentRefs:
-    - name: my-envoy-gateway      # Shared Gateway name
-      namespace: default          # Gateway namespace
+    - name: my-envoy-gateway
+      namespace: default
+
+  # ┌─────────────────────────────────────────────────────────────┐
+  # │ CUSTOMIZE: Your service's hostname                         │
+  # └─────────────────────────────────────────────────────────────┘
   hostnames:
-    - "<service>.172.16.16.102.sslip.io"  # Envoy IP
+    - "<your-subdomain>.172.16.16.102.sslip.io"  # Example: belal.172.16.16.102.sslip.io
+
+  # ┌─────────────────────────────────────────────────────────────┐
+  # │ CUSTOMIZE: Routing rules to your backend service           │
+  # └─────────────────────────────────────────────────────────────┘
   rules:
     - matches:
         - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: <service-name>
-          port: 80
+        - name: <your-service>-svc   # Example: nginx-belal-svc
+          port: 80                   # Your service port

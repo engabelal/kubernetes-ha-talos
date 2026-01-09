@@ -1,0 +1,15 @@
+# Wildcard TLS Certificate for Envoy Gateway
+# This certificate covers ALL services using *.172.16.16.102.sslip.io
+# Created ONCE by the Platform Admin
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: envoy-wildcard-cert
+  namespace: default  # Must be in the same namespace as the Gateway
+spec:
+  secretName: envoy-tls-secret  # This secret is referenced by the Gateway
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.172.16.16.102.sslip.io"  # Wildcard = One cert for ALL services!

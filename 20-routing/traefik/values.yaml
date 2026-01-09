@@ -19,4 +19,22 @@ deployment:
 
 ingressClass:
   enabled: true
-  isDefaultClass: true # This makes Traefik the default ingress for the cluster
+  isDefaultClass: true
+
+# Providers configuration
+providers:
+  kubernetesCRD:
+    enabled: true
+    allowCrossNamespace: true
+  kubernetesIngress:
+    enabled: true
+    allowExternalNameServices: true
+
+# Enable Dashboard & API
+ingressRoute:
+  dashboard:
+    enabled: false
+
+api:
+  dashboard: true
+  insecure: true

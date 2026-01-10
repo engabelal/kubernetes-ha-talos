@@ -1,4 +1,4 @@
-# 🛠️ Operations & Learning Guide
+# 📚 Knowledge Base & Learning Guide
 
 This directory contains operational guides, troubleshooting steps, and experiments for managing the Kubernetes HA Talos cluster.
 

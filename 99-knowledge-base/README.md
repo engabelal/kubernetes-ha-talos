@@ -17,5 +17,5 @@ This directory contains operational guides, troubleshooting steps, and experimen
 
 When you learn something new:
 1.  **Categorize** it into one of the folders above.
-2.  **Document** the steps clearly (like `how-to-create-user`).
+2.  **Document** the steps clearly (like `create-user-x509`).
 3.  **Clean up** any sensitive data before committing.

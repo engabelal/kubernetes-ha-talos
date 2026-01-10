@@ -23,7 +23,7 @@ graph LR
     end
 
     subgraph WHAT
-    Role[Role / ClusterRole\n(Permissions)]
+    Role["Role / ClusterRole\n(Permissions)"]
     end
 
     User --> Binding

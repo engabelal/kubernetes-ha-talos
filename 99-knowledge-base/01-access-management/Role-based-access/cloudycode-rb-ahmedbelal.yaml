@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cloudycode-namespace-rolebinding
+  namespace: cloudycode-uat
+subjects:
+  - kind: User
+    name: ahmedbelal
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: cloudycode-namespace-role
+  apiGroup: rbac.authorization.k8s.io

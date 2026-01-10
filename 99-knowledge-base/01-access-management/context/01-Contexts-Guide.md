@@ -25,7 +25,7 @@ You create two contexts in your file:
 
 | Context Name | Cluster | User | Default Namespace | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `prod-admin` | `aws-eks-prod` | `admin-user` | `default` | "I am God in Production" |
+| `prod-admin` | `aws-eks-prod` | `admin-user` | `default` | "Full Admin Access" |
 | `dev-tester` | `aws-eks-dev` | `ahmed-view` | `cloudycode-uat` | "I am Testing in UAT" |
 
 ---

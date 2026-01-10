@@ -126,3 +126,23 @@ Permissions in Kubernetes are **Additive (Union)**.
 *   **Result:** You can "View Pods" AND "Delete Services".
 
 Nothing "overrides" or "blocks" anything else. If *any* active binding says "Yes", then you are allowed.
+
+---
+
+## 5. Verification: Proving It Works
+
+You can verify your permissions using the `kubectl auth can-i` command. This simulates an action to see if it's allowed.
+
+**1. Check Default Namespace (Should fail):**
+You don't have permissions in the `default` namespace.
+```bash
+kubectl auth can-i list pods --as ahmedbelal
+# Output: no
+```
+
+**2. Check Target Namespace (Should succeed):**
+You HAVE permissions in `cloudycode-uat`.
+```bash
+kubectl auth can-i list pods --as ahmedbelal -n cloudycode-uat
+# Output: yes
+```

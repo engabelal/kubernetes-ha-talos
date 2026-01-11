@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bot-pod-example
+  namespace: default
+spec:
+  serviceAccountName: pod-creator-bot
+  containers:
+    - name: worker
+      image: nginx:alpine
+      ports:
+        - containerPort: 80

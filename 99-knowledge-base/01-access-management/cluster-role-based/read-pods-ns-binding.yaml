@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: read-pods-ns-binding
+subjects:
+  - kind: User
+    name: ahmedbelal
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: read-pods-ns-clusterrole
+  apiGroup: rbac.authorization.k8s.io
